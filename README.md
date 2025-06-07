@@ -29,23 +29,31 @@
 <string>          ::= '"' { <any_char_except_quote> } '"'
 
 <instruction>     ::= <r_type_instr>
-                        | <i_type_instr>
+                        | <i_arith_instr>
+                        | <i_load_instr>
+                        | <i_jump_instr>
                         | <s_type_instr>
                         | <b_type_instr>
                         | <u_type_instr>
                         | <j_type_instr>
                         | <sys_instr>
 
-<r_type_instr>    ::= ("add" | "sub" | "slt" | "and" | "or" | "xor")
+<r_type_instr>    ::= ("add" | "sub" | "mul" | "div" | "lsl" | "lsr" | "and" | "or" | "xor")
                      <reg> "," <reg> "," <reg>
 
-<i_type_instr>    ::= ("addi" | "andi") <reg> "," <reg> "," <immediate>
-                        | ("lw" | "lb") <reg> "," <offset> "(" <reg> ")"
-                        | ("jalr") <reg> "," <offset> "(" <reg> ")"
+<i_arith_instr> ::= ("addi" | "andi")
+                    <reg> "," <reg> "," <immediate>
 
-<s_type_instr>    ::= ("sw" | "sb") <reg> "," <offset> "(" <reg> ")"
+<i_load_instr>  ::= "lw"
+                    <reg> "," <offset> "(" <reg> ")"
 
-<b_type_instr>    ::= ("beq" | "bne" | "blt" | "bge")  <reg> "," <reg> "," <label_ref>
+<i_jump_instr>  ::= "jalr"
+                    <reg> "," <offset> "(" <reg> ")"
+
+
+<s_type_instr>    ::= ("sw") <reg> "," <offset> "(" <reg> ")"
+
+<b_type_instr>    ::= ("beq" | "bne" | "bgt" | "ble" | )  <reg> "," <reg> "," <label_ref>
 
 <u_type_instr>    ::= ("lui" | "auipc") <reg> "," <immediate>
 
@@ -115,11 +123,141 @@
 | `r31`   | `x31`  | Reserved / custom use             |
 
 ### Стратегия вычислений
-### Области видимости
-### Типизация, виды литералов
+- Ассемблер соответствует строгой модели вычислений. Все аргументы вычисляются до применения к ним функций
+- Язык не поддерживает выражения включающие в себя несколько ариф./логич. операций. Порядок выполнения операций определяет программист
 
+### Области видимости
+В языке не существует как таковых областей видимости, однако есть пара моментов:
+- Секция данных и команд не имеют прямого доступа друг к другу
+- На аппаратном уровне невозможно прочитать команду из памяти команд как данные и наоборот
+
+### Типизация, виды литералов
 ## Организация памяти
 ## Система команд
+ - Длина инструкции строгая, 32 бит
+
+> rs - source register
+
+> rd - destination register
+
+> opcode - operation code
+
+> funct - function fields
+
+> imm - immediate value 
+
+
+|  Type  |       Example Instructions       | Opcode (bin) | Opcode (hex) |            Notes            |
+| :----: | :------------------------------: | :----------: | :----------: | :-------------------------: |
+| R-type | add, sub, mul, div, and, or, xor |  `0110011`   |    `0x33`    |   ALU register operations   |
+| I-type |      addi, andi, ori, xori       |  `0010011`   |    `0x13`    |      ALU immediate ops      |
+| I-type |                lw                |  `0000011`   |    `0x03`    |      Load instructions      |
+| I-type |               jalr               |  `1100111`   |    `0x67`    |        Indirect jump        |
+| S-type |                sw                |  `0100011`   |    `0x23`    |     Store instructions      |
+| B-type |        beq, bne, blt, bge        |  `1100011`   |    `0x63`    |    Conditional branches     |
+| U-type |               lui                |  `0110111`   |    `0x37`    |    Load upper immediate     |
+| U-type |              auipc               |  `0010111`   |    `0x17`    | PC-relative upper immediate |
+| J-type |               jal                |  `1101111`   |    `0x6F`    |  Unconditional jump + link  |
+|  SYS   |               halt               |  `1111111`   |    `0x7F`    |     Custom system/halt      |
+### R-type инструкции
+Формат:
+
+|  funct7  |   rs2    |   rs1    |  funct3  |   rd    | opcode |
+| :------: | :------: | :------: | :------: | :-----: | :----: |
+| `[31..25]` | `[24..20]` | `[19..15]` | `[14..12]` | `[11..7]` | `[6..0]` |
+|  7 bits  |  5 bits  |  5 bits  |  3 bits  | 5 bits  | 7 bits |
+
+Инструкции и их бинарное представление:
+
+| Instruction |  funct7   | rs2 | rs1 | funct3 | rd  | opcode (`0x33`) | description       |
+| :---------: | :-------: | :-: | :-: | :----: | :-: | :-------------: | ----------------- |
+|     add     | `0000000` |  -  |  -  | `000`  |  -  |    `0110011`    | `rd = rs1 + rs2`  |
+|     sub     | `0000000` |  -  |  -  | `001`  |  -  |    `0110011`    | `rd = rs1 - rs2`  |
+|     and     | `0000000` |  -  |  -  | `010`  |  -  |    `0110011`    | `rd = rs1 & rs2`  |
+|     or      | `0000000` |  -  |  -  | `011`  |  -  |    `0110011`    | `rd = rs1 \| rs2` |
+|     xor     | `0000000` |  -  |  -  | `100`  |  -  |    `0110011`    | `rd = rs1 ^ rs2`  |
+|     mul     | `0000000` |  -  |  -  | `101`  |  -  |    `0110011`    | `rd = rs1 * rs2`  |
+|     div     | `0000000` |  -  |  -  | `110`  |  -  |    `0110011`    | `rd = rs1 / rs2`  |
+|     lsl     | `0000000` |  -  |  -  | `111`  |  -  |    `0110011`    | `rd = rs1 << rs2` |
+|     lsr     | `0000001` |  -  |  -  | `000`  |  -  |    `0110011`    | `rd = rs1 >> rs2` |
+
+### I - type инструкции
+Формат:
+
+|    imm     |    rs1     |   funct3   |    rd     |  opcode  |
+| :--------: | :--------: | :--------: | :-------: | :------: |
+| `[31..20]` | `[19..15]` | `[14..12]` | `[11..7]` | `[6..0]` |
+|  12 bits   |   5 bits   |   3 bits   |  5 bits   |  7 bits  |
+Инструкции и их бинарное представление:
+
+| instruction | imm | rs1 | funct3 | rd  |      opcode       | description                             |
+| :---------: | :-: | :-: | :----: | :-: | :---------------: | --------------------------------------- |
+|    addi     |  -  |  -  | `000`  |  -  | `0010011  - 0x13` | `rd = rs1 + imm`                        |
+|    andi     |  -  |  -  | `001`  |  -  | `0010011 - 0x13`  | `rd = rs1 & imm`                        |
+|     lw      |  -  |  -  | `000`  |  -  |  `0000011 - 0x3`  | `rd = mem[rs1 + offset]`                |
+|    jalr     |  -  |  -  | `000`  |  -  | `1100111 - 0x67`  | `PC = (rs1 + offset) & ~1`, `rd = PC+4` |
+### S-type инструкции
+
+| imm`[11:5]` |    rs2     |    rs1     |   funct3   | imm`[4:0]` |  opcode  |
+| :---------: | :--------: | :--------: | :--------: | :--------: | :------: |
+| `[31..25]`  | `[24..20]` | `[19..15]` | `[14..12]` | `[11..7]`  | `[6..0]` |
+|   7 bits    |   5 bits   |   5 bits   |   3 bits   |   5 bits   |  7 bits  |
+
+| instruction | imm`[11:5]` | rs2 | rs1 | funct3 | imm`[4:0]` |      opcode      |    description     |
+| :---------: | :---------: | :-: | :-: | :----: | :--------: | :--------------: | :----------------: |
+|     sw      |      -      |  -  |  -  |        |     -      | `0100011 - 0x23` | `[r1 + imm] <- r2` |
+
+### B-type инструкции
+
+Формат:
+
+| imm`[11:0]` |    rs2     |    rs1     |  funct3  |  opcode  |
+| :---------: | :--------: | :--------: | :------: | :------: |
+| `[31..21]`  | `[19..15]` | `[14..10]` | `[9..7]` | `[6..0]` |
+|   12 bits   |   5 bits   |   5 bits   |  3 bits  |  7 bits  |
+
+Инструкции и их бинарное представление:
+
+| instruction | imm`[11:0]` | rs2 | rs1 | funct3 |      opcode      | description                         |
+| ----------- | :---------: | :-: | :-: | :----: | :--------------: | ----------------------------------- |
+| beq         |      -      |  -  |  -  | `000`  | `1100011 - 0x63` | `branch if r1 == r2, PC <- PC + imm` |
+| bne         |      -      |  -  |  -  | `001`  | `1100011 - 0x63` | `branch if r1 != r2, PC <- PC + imm`  |
+| bgt         |      -      |  -  |  -  | `010`  | `1100011 - 0x63` | `branch if r1 > r2, PC <- PC + imm`  |
+| ble         |      -      |  -  |  -  | `011`  | `1100011 - 0x63` | `branch if r1 <= r2, PC <- PC + imm`  |
+
+### U-type инструкции
+Формат:
+
+|    imm     |    rd     |  opcode  |
+| :--------: | :-------: | :------: |
+| `[31..12]` | `[11..7]` | `[6..0]` |
+|  20 bits   |  5 bits   |  7 bits  |
+
+Инструкции и их бинарное представление:
+
+| instruction | imm`[31:12]` | rd  |      opcode      | description                  |
+| ----------- | :----------: | :-: | :--------------: | ---------------------------- |
+| lui         |      -       |  -  | `0110111 - 0x37` | Load upper immediate to `r1` |
+
+### J-type инструкции
+
+Формат:
+
+| imm`[31:12]` | rd        | opcode   |
+| ------------ | --------- | -------- |
+| `[31..12]`   | `[11..7]` | `[6..0]` |
+| 20 bits      | 5 bits    | 7 bits   |
+
+Инструкции и их бинарное представление:
+
+| instruction | imm`[31:12]` | rd  |      opcode      |          description           |
+| :---------: | :----------: | :-: | :--------------: | :----------------------------: |
+|     jal     |      -       |  -  | `1101111 - 0x6F` | `PC ← PC + imm`, `r1 ← PC + 4` |
+### sys-type
+| instruction | operands | opcode (bin) | opcode (hex) |    description     |
+| :---------: | :------: | :----------: | :----------: | :----------------: |
+|   `halt`    |    –     |  `1111111`   |    `0x7F`    | Custom system/halt |
+
 ## Транслятор
 ## Модель процессора
 ## Тестирование
