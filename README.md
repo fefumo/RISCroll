@@ -24,7 +24,11 @@
 
 <value_list>      ::= <value> { "," <value> }
 
-<value>           ::= <identifier> | <number> | <string>
+<value>           ::= <identifier> 
+                        | <number> 
+                        | <string>
+                        | "high(" <identifier> ")"
+                        | "low(" <identifier> ")"
 
 <string>          ::= '"' { <any_char_except_quote> } '"'
 
@@ -70,7 +74,14 @@
 <label_ref>       ::= <identifier>
 
 <identifier>      ::= <letter> { <letter> | <digit> | "_" }
-<number>          ::= ["-"] <digit> { <digit> }
+
+<number> ::= ["-"] (<decimal> | <hexadecimal>)
+
+<decimal>     ::= <digit> {<digit>}
+<hexadecimal> ::= "0x" <hex_digit> {<hex_digit>}
+
+<hex_digit>   ::= <digit> | "a" | "b" | "c" | "d" | "e" | "f"
+                             | "A" | "B" | "C" | "D" | "E" | "F"
 
 <letter>          ::= "A" | ... | "Z" | "a" | ... | "z"
 <digit>           ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
@@ -84,6 +95,30 @@
 <macro_use> ::= <identifier> [<macro_arg_list>]
 
 <macro_arg_list> ::= <value> { "," <value> }
+
+```
+##### Поддержка label-ов, секций и директивы .org. Поддержка пользовательских макроопределений.
+Описанный синтаксис позволяет писать код как на полноценном асме.
+
+Пример использования лейблов, секций и директивы .org:
+```
+.data
+.org 0x0200
+in_addr: .word 0x100
+
+.text
+.org 0x1000
+main:
+    halt
+```
+
+Пример использования макроса:
+```
+.macro inc3 reg
+    addi \reg, \reg, 3
+.endm
+
+inc3 r5 # использование макроса inc3 в коде
 
 ```
 ### Регистры
