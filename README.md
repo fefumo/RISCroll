@@ -57,7 +57,7 @@
 <r_type_instr>    ::= ("add" | "sub" | "mul" | "div" | "lsl" | "lsr" | "and" | "or" | "xor")
                      <reg> "," <reg> "," <reg>
 
-<i_arith_instr> ::= ("addi" | "andi")
+<i_arith_instr> ::= ("addi" | "andi" | "ori")
                     <reg> "," <reg> "," <immediate>
 
 <i_load_instr>  ::= "lw"
@@ -256,7 +256,7 @@ inc3 r5 # использование макроса inc3 в коде
 |  Type  |       Example Instructions       | Opcode (bin) | Opcode (hex) |            Notes            |
 | :----: | :------------------------------: | :----------: | :----------: | :-------------------------: |
 | R-type | add, sub, mul, div, and, or, xor |  `0110011`   |    `0x33`    |   ALU register operations   |
-| I-type |      addi, andi, ori, xori       |  `0010011`   |    `0x13`    |      ALU immediate ops      |
+| I-type |         addi, andi, ori          |  `0010011`   |    `0x13`    |      ALU immediate ops      |
 | I-type |                lw                |  `0000011`   |    `0x03`    |      Load instructions      |
 | I-type |               jalr               |  `1100111`   |    `0x67`    |        Indirect jump        |
 | S-type |                sw                |  `0100011`   |    `0x23`    |     Store instructions      |
@@ -265,7 +265,8 @@ inc3 r5 # использование макроса inc3 в коде
 | U-type |              auipc               |  `0010111`   |    `0x17`    | PC-relative upper immediate |
 | J-type |               jal                |  `1101111`   |    `0x6F`    |  Unconditional jump + link  |
 |  SYS   |               halt               |  `1111111`   |    `0x7F`    |     Custom system/halt      |
-### R-type инструкции
+
+#### R-type инструкции
 Формат:
 
 |  funct7  |   rs2    |   rs1    |  funct3  |   rd    | opcode |
@@ -275,8 +276,8 @@ inc3 r5 # использование макроса inc3 в коде
 
 Инструкции и их бинарное представление:
 
-| Instruction |  funct7   | rs2 | rs1 | funct3 | rd  | opcode (`0x33`) | description       |
-| :---------: | :-------: | :-: | :-: | :----: | :-: | :-------------: | ----------------- |
+| Instruction |  funct7   | rs2 | rs1 | funct3 | rd  | opcode (`0x33`) |    description    |
+| :---------: | :-------: | :-: | :-: | :----: | :-: | :-------------: | :---------------: |
 |     add     | `0000000` |  -  |  -  | `000`  |  -  |    `0110011`    | `rd = rs1 + rs2`  |
 |     sub     | `0000000` |  -  |  -  | `001`  |  -  |    `0110011`    | `rd = rs1 - rs2`  |
 |     and     | `0000000` |  -  |  -  | `010`  |  -  |    `0110011`    | `rd = rs1 & rs2`  |
@@ -287,7 +288,7 @@ inc3 r5 # использование макроса inc3 в коде
 |     lsl     | `0000000` |  -  |  -  | `111`  |  -  |    `0110011`    | `rd = rs1 << rs2` |
 |     lsr     | `0000001` |  -  |  -  | `000`  |  -  |    `0110011`    | `rd = rs1 >> rs2` |
 
-### I - type инструкции
+#### I - type инструкции
 Формат:
 
 |    imm     |    rs1     |   funct3   |    rd     |  opcode  |
@@ -297,15 +298,16 @@ inc3 r5 # использование макроса inc3 в коде
 
 Инструкции и их бинарное представление:
 
-| instruction | imm | rs1 | funct3 | rd  |      opcode       | description                             |
-| :---------: | :-: | :-: | :----: | :-: | :---------------: | --------------------------------------- |
-|    addi     |  -  |  -  | `000`  |  -  | `0010011  - 0x13` | `rd = rs1 + imm`                        |
-|    andi     |  -  |  -  | `001`  |  -  | `0010011 - 0x13`  | `rd = rs1 & imm`                        |
-|     lw      |  -  |  -  | `000`  |  -  |  `0000011 - 0x3`  | `rd = mem[rs1 + offset]`                |
-|    jalr     |  -  |  -  | `000`  |  -  | `1100111 - 0x67`  | `PC = (rs1 + offset) & ~1`, `rd = PC+4` |
-### S-type инструкции
-Формат:
+| instruction | imm | rs1 | funct3 | rd  |       opcode       |               description               |
+| :---------: | :-: | :-: | :----: | :-: | :----------------: | :-------------------------------------: |
+|    addi     |  -  |  -  | `000`  |  -  | `0010011  - 0x13`  |            `rd = rs1 + imm`             |
+|    andi     |  -  |  -  | `001`  |  -  |  `0010011 - 0x13`  |            `rd = rs1 & imm`             |
+|     ori     |  -  |  -  | `010`  |  -  | ``0010011 - 0x13`` |            `rd = rs1 \| imm`            |
+|     lw      |  -  |  -  | `000`  |  -  |  `0000011 - 0x3`   |        `rd = mem[rs1 + offset]`         |
+|    jalr     |  -  |  -  | `000`  |  -  |  `1100111 - 0x67`  | `PC = (rs1 + offset) & ~1`, `rd = PC+4` |
 
+#### S-type инструкции
+Формат:
 
 | imm`[11:5]` |    rs2     |    rs1     |   funct3   | imm`[4:0]` |  opcode  |
 | :---------: | :--------: | :--------: | :--------: | :--------: | :------: |
@@ -318,8 +320,7 @@ inc3 r5 # использование макроса inc3 в коде
 | :---------: | :---------: | :-: | :-: | :----: | :--------: | :--------------: | :----------------: |
 |     sw      |      -      |  -  |  -  |  000   |     -      | `0100011 - 0x23` | `[r1 + imm] <- r2` |
 
-### B-type инструкции
-
+#### B-type инструкции
 Формат:
 
 | imm`[11:0]` |    rs2     |    rs1     |  funct3  |  opcode  |
@@ -329,14 +330,14 @@ inc3 r5 # использование макроса inc3 в коде
 
 Инструкции и их бинарное представление:
 
-| instruction | imm`[11:0]` | rs2 | rs1 | funct3 |      opcode      | description                         |
-| ----------- | :---------: | :-: | :-: | :----: | :--------------: | ----------------------------------- |
-| beq         |      -      |  -  |  -  | `000`  | `1100011 - 0x63` | `branch if r1 == r2, PC <- PC + imm` |
-| bne         |      -      |  -  |  -  | `001`  | `1100011 - 0x63` | `branch if r1 != r2, PC <- PC + imm`  |
-| bgt         |      -      |  -  |  -  | `010`  | `1100011 - 0x63` | `branch if r1 > r2, PC <- PC + imm`  |
-| ble         |      -      |  -  |  -  | `011`  | `1100011 - 0x63` | `branch if r1 <= r2, PC <- PC + imm`  |
+| instruction | imm`[11:0]` | rs2 | rs1 | funct3 |      opcode      |             description             |
+| ----------- | :---------: | :-: | :-: | :----: | :--------------: | :---------------------------------: |
+| beq         |      -      |  -  |  -  | `000`  | `1100011 - 0x63` | `branch if r1 == r2, PC ← PC + imm` |
+| bne         |      -      |  -  |  -  | `001`  | `1100011 - 0x63` | `branch if r1 ≠ r2, PC ← PC + imm`  |
+| bgt         |      -      |  -  |  -  | `010`  | `1100011 - 0x63` | `branch if r1 > r2, PC ← PC + imm`  |
+| ble         |      -      |  -  |  -  | `011`  | `1100011 - 0x63` | `branch if r1 ≤ r2, PC ← PC + imm`  |
 
-### U-type инструкции
+#### U-type инструкции
 Формат:
 
 |    imm     |    rd     |  opcode  |
@@ -346,12 +347,11 @@ inc3 r5 # использование макроса inc3 в коде
 
 Инструкции и их бинарное представление:
 
-| instruction | imm`[31:12]` | rd  |      opcode      | description                  |
-| ----------- | :----------: | :-: | :--------------: | ---------------------------- |
-| lui         |      -       |  -  | `0110111 - 0x37` | Load upper immediate to `r1` |
+| instruction | imm`[31:12]` | rd  |      opcode      |         description          |
+| :---------: | :----------: | :-: | :--------------: | :--------------------------: |
+|     lui     |      -       |  -  | `0110111 - 0x37` | Load upper immediate to `r1` |
 
-### J-type инструкции
-
+#### J-type инструкции
 Формат:
 
 | imm`[31:12]` | rd        | opcode   |
@@ -365,7 +365,8 @@ inc3 r5 # использование макроса inc3 в коде
 | :---------: | :----------: | :-: | :--------------: | :----------------------------: |
 |     jal     |      -       |  -  | `1101111 - 0x6F` | `PC ← PC + imm`, `r1 ← PC + 4` |
 
-## sys-type
+#### sys-type
+Формат
 | instruction | operands | opcode (bin) | opcode (hex) |    description     |
 | :---------: | :------: | :----------: | :----------: | :----------------: |
 |   `halt`    |    –     |  `1111111`   |    `0x7F`    | Custom system/halt |
