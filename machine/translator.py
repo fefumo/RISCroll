@@ -39,17 +39,14 @@ def to_hex(code: List[int], debug_info: List[Tuple[int, str, int]]) -> str:
     return "\n".join(result)
 
 
-# def translate(source: str):
-#     lines = source.splitlines()
-#     label_map, data_segment, text_segment = first_pass(lines)
-#     data_code, data_debug = second_pass(data_segment, label_map)
-#     text_code, text_debug = second_pass(text_segment, label_map)
-#     return data_code + text_code, data_debug + text_debug
-
-
 def first_pass(
     lines: List[str],
 ) -> Tuple[Dict[str, int], List[Tuple[int, str]], List[Tuple[int, str]]]:
+    """
+    - Resolve labels and their addresses
+    - Split into .text and .data sections
+    - Track .org directives
+    """
     addr_of_instr = 0
     label_map = {}
     section = None
@@ -58,41 +55,38 @@ def first_pass(
     text_segment = []
 
     for line in lines:
-        line = line.split("#")[0].strip()
+        line = line.split("#")[0].strip()  # remove comments
         if not line:
             continue
 
         if line.startswith(".org"):
             _, addr = line.split()
             addr_of_instr = int(addr, 0)
-            org[section] = addr_of_instr
+            org[section] = addr_of_instr  # update current section address
             continue
 
         if line in [".text", ".data"]:
             section = line
-            addr_of_instr = org[section]
+            addr_of_instr = org[section]  # reset addr to .org
             continue
 
         if ":" in line:
             label, rest = line.split(":", 1)
             label = label.strip()
-            label_map[label] = addr_of_instr
-            line = rest.strip()  # there is a part left with a directive or instruction
-
+            label_map[label] = addr_of_instr  # store label address
+            line = rest.strip()
             if not line:
-                continue  # if nothing left, go to the next line
+                continue
 
         if section == ".data":
             if line.startswith(".word"):
                 _, val = line.split(None, 1)
-                # label_map[f'data_{addr_of_instr:08x}'] = addr_of_instr
                 data_segment.append((addr_of_instr, f".word {val.strip()}"))
                 addr_of_instr += 4
             elif line.startswith(".byte"):
                 _, val = line.split(None, 1)
                 val = val.strip().strip("'\"")
                 for c in val:
-                    # label_map[f'data_{addr_of_instr:08x}'] = addr_of_instr
                     data_segment.append((addr_of_instr, f".byte {ord(c)}"))
                     addr_of_instr += 1
         elif section == ".text":
@@ -105,6 +99,13 @@ def first_pass(
 def second_pass(
     instructions: List[Tuple[int, str]], label_map: Dict[str, int]
 ) -> Tuple[List[int], List[Tuple[int, str, int]]]:
+    """
+    Сonvert instructions and data to machine code.
+
+    Returns:
+        - list of binary instructions/data
+        - debug info (address, source, encoded value)
+    """
     code = []
     debug_info = []
     for addr_of_instr, line in instructions:
@@ -134,6 +135,24 @@ def parse_line(line: str):
 def get_token(
     operand: str, label_map: Dict[str, int], pc: int = 0, relative: bool = False
 ) -> int:
+    """
+    Converts an operand into a numeric value.
+
+    Supported operand types:
+    - 'low(label)'  — returns the lower 12 bits of the label's address.
+    - 'high(label)' — returns the upper 20 bits (address rounded down to nearest 4KB).
+    - 'label'       — returns the label's absolute address or offset from `pc` if `relative` is True.
+    - numeric literal — returns the literal directly (supports decimal and hex, e.g., '123', '0x100').
+
+    Args:
+        operand: A string representing the operand (label, low/high(...) or literal).
+        label_map: A dictionary mapping label names to their resolved addresses.
+        pc: Current program counter; used for calculating relative addresses.
+        relative: If True, returns the offset (label - pc) instead of the absolute address.
+
+    Returns:
+        An integer representing the resolved value of the operand.
+    """
     operand = operand.strip(",")
     if operand.startswith("low("):
         label = operand[4:-1]
@@ -253,10 +272,10 @@ def write_binaries(text_code, data_code, debug_info_text, debug_info_data, targe
     with open(target_path + ".data.bin", "wb") as f:
         f.write(to_bytes(data_code))
 
-    with open(target_path + ".text.dbg.txt", "w", encoding="utf-8") as f:
+    with open(target_path + ".text.log", "w", encoding="utf-8") as f:
         f.write(to_hex(text_code, debug_info_text))
 
-    with open(target_path + ".data.dbg.txt", "w", encoding="utf-8") as f:
+    with open(target_path + ".data.log", "w", encoding="utf-8") as f:
         f.write(to_hex(data_code, debug_info_data))
 
 def main(source_path, target_path):
@@ -266,20 +285,6 @@ def main(source_path, target_path):
 
     with open(source_path, encoding="utf-8") as f:
         source = f.read()
-
-    # code, debug_info = translate(source)
-    # with open(target_path + ".bin", "wb") as f:
-    #     f.write(to_bytes(code))
-    # debug_output = to_hex(code, debug_info)
-    # debug_output = (
-    #     "===== DEBUG INFO =====\n"
-    #     + "format: \nAddr - hex_word - bin_word - mnemonic\n"
-    #     + debug_output
-    # )
-    # with open(target_path + ".dbg.txt", "w", encoding="utf-8") as f:
-    #     f.write(debug_output)
-    # print(debug_output)
-    # dump_bin_as_text(target_path + ".bin")
 
     lines = source.splitlines()
     label_map, data_segment, text_segment = first_pass(lines)
