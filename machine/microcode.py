@@ -25,7 +25,7 @@ class MicrocodeROM:
         self.code = {}
         self.decode_table = {}
         self.mpc_counter = 100
-        
+
         self.fill_fetch()
         self.fill_from_isa()
 
@@ -49,9 +49,7 @@ class MicrocodeROM:
             comment="FETCH", latch_ir=True, latch_pc="inc", next_mpc=1
         )
         self.code[1] = MicroInstruction(comment="DECODE", next_mpc=1000)
-        self.code[1000] = MicroInstruction(
-            comment="DECODE DISPATCH", next_mpc=None
-        )
+        self.code[1000] = MicroInstruction(comment="DECODE DISPATCH", next_mpc=None)
 
     def register_decode(self, opcode, funct3=None, funct7=None, mpc=None):
         """
@@ -79,7 +77,7 @@ class MicrocodeROM:
         addr = self.mpc_counter
         self.mpc_counter += count
         return addr
-    
+
     def fill_from_isa(self):
         for name, props in INSTRUCTION_SET.items():
             t = props["type"]
@@ -92,52 +90,88 @@ class MicrocodeROM:
                 addr = self.alloc(2)
                 self.register_decode(opcode, funct3, funct7, addr)
                 self.code[addr] = MicroInstruction(
-                    comment=f"R-{op}", latch_alu=op, set_flags=True, next_mpc=addr+1
+                    comment=f"R-{op}", latch_alu=op, set_flags=True, next_mpc=addr + 1
                 )
-                self.code[addr+1] = MicroInstruction(comment="WB", latch_reg=3, next_mpc=0)
+                self.code[addr + 1] = MicroInstruction(
+                    comment="WB", latch_reg="rd", next_mpc=0
+                )
 
             elif t == "I":
                 if op == "lw":
                     addr = self.alloc(2)
                     self.register_decode(opcode, funct3, None, addr)
-                    self.code[addr] = MicroInstruction(comment="I-LW addr", latch_alu="add", next_mpc=addr+1)
-                    self.code[addr+1] = MicroInstruction(comment="I-LW load", mem_read=True, latch_reg=3, next_mpc=0)
+                    self.code[addr] = MicroInstruction(
+                        comment="I-LW addr", latch_alu="add", next_mpc=addr + 1
+                    )
+                    self.code[addr + 1] = MicroInstruction(
+                        comment="I-LW load", mem_read=True, latch_reg=3, next_mpc=0
+                    )
                 elif op == "jalr":
                     addr = self.alloc(2)
                     self.register_decode(opcode, funct3, None, addr)
-                    self.code[addr] = MicroInstruction(comment="I-JALR addr", latch_alu="add", next_mpc=addr+1)
-                    self.code[addr+1] = MicroInstruction(comment="I-JALR jump", latch_pc="alu", next_mpc=0)
+                    self.code[addr] = MicroInstruction(
+                        comment="I-JALR addr", latch_alu="add", next_mpc=addr + 1
+                    )
+                    self.code[addr + 1] = MicroInstruction(
+                        comment="I-JALR jump", latch_pc="alu", next_mpc=0
+                    )
                 else:
                     addr = self.alloc(2)
                     self.register_decode(opcode, funct3, None, addr)
-                    self.code[addr] = MicroInstruction(comment=f"I-{op}", latch_alu=op, set_flags=True, next_mpc=addr+1)
-                    self.code[addr+1] = MicroInstruction(comment="WB", latch_reg=3, next_mpc=0)
+                    self.code[addr] = MicroInstruction(
+                        comment=f"I-{op}",
+                        latch_alu=op,
+                        set_flags=True,
+                        next_mpc=addr + 1,
+                    )
+                    self.code[addr + 1] = MicroInstruction(
+                        comment="WB", latch_reg="rd", next_mpc=0
+                    )
 
             elif t == "S":
                 addr = self.alloc(2)
                 self.register_decode(opcode, funct3, None, addr)
-                self.code[addr] = MicroInstruction(comment="S-SW addr", latch_alu="add", next_mpc=addr+1)
-                self.code[addr+1] = MicroInstruction(comment="S-SW store", mem_write=True, next_mpc=0)
+                self.code[addr] = MicroInstruction(
+                    comment="S-SW addr", latch_alu="add", next_mpc=addr + 1
+                )
+                self.code[addr + 1] = MicroInstruction(
+                    comment="S-SW store", mem_write=True, next_mpc=0
+                )
 
             elif t == "B":
                 addr = self.alloc(2)
                 cond_map = {"beq": "Z", "bne": "NZ", "bgt": "GT", "ble": "LE"}
                 cond = cond_map[op]
                 self.register_decode(opcode, funct3, None, addr)
-                self.code[addr] = MicroInstruction(comment=f"B-{op} cmp", latch_alu="sub", set_flags=True, next_mpc=addr+1)
-                self.code[addr+1] = MicroInstruction(comment="B-cond", latch_pc="branch", jump_if=cond, next_mpc=0)
+                self.code[addr] = MicroInstruction(
+                    comment=f"B-{op} cmp",
+                    latch_alu="sub",
+                    set_flags=True,
+                    next_mpc=addr + 1,
+                )
+                self.code[addr + 1] = MicroInstruction(
+                    comment="B-cond", latch_pc="branch", jump_if=cond, next_mpc=0
+                )
 
             elif t == "U":
                 addr = self.alloc(2)
                 self.register_decode(opcode, None, None, addr)
-                self.code[addr] = MicroInstruction(comment="U-LUI", latch_alu="lui", next_mpc=addr+1)
-                self.code[addr+1] = MicroInstruction(comment="U-LUI write", latch_reg=3, next_mpc=0)
+                self.code[addr] = MicroInstruction(
+                    comment="U-LUI", latch_alu="lui", next_mpc=addr + 1
+                )
+                self.code[addr + 1] = MicroInstruction(
+                    comment="U-LUI write", latch_reg="rd", next_mpc=0
+                )
 
             elif t == "J":
                 addr = self.alloc(2)
                 self.register_decode(opcode, None, None, addr)
-                self.code[addr] = MicroInstruction(comment="J-JAL calc", latch_alu="jal", next_mpc=addr+1)
-                self.code[addr+1] = MicroInstruction(comment="J-JAL jump", latch_pc="alu", next_mpc=0)
+                self.code[addr] = MicroInstruction(
+                    comment="J-JAL calc", latch_alu="jal", next_mpc=addr + 1
+                )
+                self.code[addr + 1] = MicroInstruction(
+                    comment="J-JAL jump", latch_pc="alu", next_mpc=0
+                )
 
             elif t == "SYS":
                 self.register_decode(opcode, None, None, 9999)

@@ -7,6 +7,7 @@ def load_binary(path):
     with open(path, "rb") as f:
         return f.read()
 
+
 def run(instr_path, data_path):
     instr_mem = load_binary(instr_path)
     data_mem = load_binary(data_path)
@@ -24,9 +25,10 @@ def run(instr_path, data_path):
 
     print("==== MACHINE HALTED ====")
     cpu.tracer.finish()
-    
+
     print("Output buffer:")
     print("".join(cpu.output_buffer))
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:

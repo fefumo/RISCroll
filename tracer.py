@@ -3,6 +3,7 @@ import os
 
 from machine.microcode import MicroInstruction
 
+
 class Tracer:
     def __init__(self, cpu, log_dir="trace_output"):
         self.cpu = cpu
@@ -51,7 +52,6 @@ class Tracer:
             rd = (self.cpu.ir >> 7) & 0x1F
             parts.append(f"Result written to register r{rd}")
 
-
         trace_str = "\n".join(parts)
         self.log_file.write(trace_str + "\n")
         self.logs.append(trace_str)
@@ -61,15 +61,17 @@ class Tracer:
         self.trace_microinstr(mi)
         self.dump_state()
 
-        self.binary_trace.append({
-            "tick": self.tick_count,
-            "pc": self.cpu.pc,
-            "ir": self.cpu.ir,
-            "mpc": self.cpu.mpc,
-            "alu_out": self.cpu.alu_out,
-            "flags": self.cpu.flags.copy(),
-            "registers": self.cpu.registers.copy()
-        })
+        self.binary_trace.append(
+            {
+                "tick": self.tick_count,
+                "pc": self.cpu.pc,
+                "ir": self.cpu.ir,
+                "mpc": self.cpu.mpc,
+                "alu_out": self.cpu.alu_out,
+                "flags": self.cpu.flags.copy(),
+                "registers": self.cpu.registers.copy(),
+            }
+        )
         self.tick_count += 1
 
     def finish(self):

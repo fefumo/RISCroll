@@ -20,12 +20,14 @@ def to_bytes(code: List[int]):
         else:
             raise ValueError("Unsupported instruction format")
 
-        binary_bytes.extend((
-            binary_instr & 0xFF,
-            (binary_instr >> 8) & 0xFF,
-            (binary_instr >> 16) & 0xFF,
-            (binary_instr >> 24) & 0xFF,
-        ))
+        binary_bytes.extend(
+            (
+                binary_instr & 0xFF,
+                (binary_instr >> 8) & 0xFF,
+                (binary_instr >> 16) & 0xFF,
+                (binary_instr >> 24) & 0xFF,
+            )
+        )
 
     return bytes(binary_bytes)
 
@@ -165,6 +167,7 @@ def get_token(
         return val - pc if relative else val
     return int(operand, 0)
 
+
 # TODO: write comms in `return` section of types
 def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
     instr, operands = parsed
@@ -265,6 +268,7 @@ def dump_bin_as_text(bin_path: str):
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
+
 def write_binaries(text_code, data_code, debug_info_text, debug_info_data, target_path):
     with open(target_path + ".text.bin", "wb") as f:
         f.write(to_bytes(text_code))
@@ -277,6 +281,7 @@ def write_binaries(text_code, data_code, debug_info_text, debug_info_data, targe
 
     with open(target_path + ".data.log", "w", encoding="utf-8") as f:
         f.write(to_hex(data_code, debug_info_data))
+
 
 def main(source_path, target_path):
     """create .bin file and debugging info"""
