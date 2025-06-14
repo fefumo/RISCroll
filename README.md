@@ -240,17 +240,17 @@ inc3 r5 # использование макроса inc3 в коде
 ```
 
 ## Система команд
+#### Основные характерстики:
  - Длина инструкции строгая, 32 бит
+ - Opcode взяты из оффициальной документации risc
+ - Некоторые форматы (B/U/J/I-type) были переделаны для простоты восприятия (так как isa не содержит всех существуюших инструкций isa risc-v)
 
-> rs - source register
-
-> rd - destination register
-
-> opcode - operation code
-
-> funct - function fields
-
-> imm - immediate value 
+#### Аббревиатуры:
+- rs - source register
+- rd - destination register
+- opcode - operation code
+- funct - function fields
+- imm - immediate value 
 
 
 |  Type  |       Example Instructions       | Opcode (bin) | Opcode (hex) |            Notes            |
