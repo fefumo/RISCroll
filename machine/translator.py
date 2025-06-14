@@ -39,12 +39,12 @@ def to_hex(code: List[int], debug_info: List[Tuple[int, str, int]]) -> str:
     return "\n".join(result)
 
 
-def translate(source: str):
-    lines = source.splitlines()
-    label_map, data_segment, text_segment = first_pass(lines)
-    data_code, data_debug = second_pass(data_segment, label_map)
-    text_code, text_debug = second_pass(text_segment, label_map)
-    return data_code + text_code, data_debug + text_debug
+# def translate(source: str):
+#     lines = source.splitlines()
+#     label_map, data_segment, text_segment = first_pass(lines)
+#     data_code, data_debug = second_pass(data_segment, label_map)
+#     text_code, text_debug = second_pass(text_segment, label_map)
+#     return data_code + text_code, data_debug + text_debug
 
 
 def first_pass(
@@ -246,6 +246,18 @@ def dump_bin_as_text(bin_path: str):
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
 
+def write_binaries(text_code, data_code, debug_info_text, debug_info_data, target_path):
+    with open(target_path + ".text.bin", "wb") as f:
+        f.write(to_bytes(text_code))
+
+    with open(target_path + ".data.bin", "wb") as f:
+        f.write(to_bytes(data_code))
+
+    with open(target_path + ".text.dbg.txt", "w", encoding="utf-8") as f:
+        f.write(to_hex(text_code, debug_info_text))
+
+    with open(target_path + ".data.dbg.txt", "w", encoding="utf-8") as f:
+        f.write(to_hex(data_code, debug_info_data))
 
 def main(source_path, target_path):
     """create .bin file and debugging info"""
@@ -255,24 +267,26 @@ def main(source_path, target_path):
     with open(source_path, encoding="utf-8") as f:
         source = f.read()
 
-    code, debug_info = translate(source)
+    # code, debug_info = translate(source)
+    # with open(target_path + ".bin", "wb") as f:
+    #     f.write(to_bytes(code))
+    # debug_output = to_hex(code, debug_info)
+    # debug_output = (
+    #     "===== DEBUG INFO =====\n"
+    #     + "format: \nAddr - hex_word - bin_word - mnemonic\n"
+    #     + debug_output
+    # )
+    # with open(target_path + ".dbg.txt", "w", encoding="utf-8") as f:
+    #     f.write(debug_output)
+    # print(debug_output)
+    # dump_bin_as_text(target_path + ".bin")
 
-    with open(target_path + ".bin", "wb") as f:
-        f.write(to_bytes(code))
-
-    debug_output = to_hex(code, debug_info)
-    debug_output = (
-        "===== DEBUG INFO =====\n"
-        + "format: \nAddr - hex_word - bin_word - mnemonic\n"
-        + debug_output
-    )
-    
-    with open(target_path + ".dbg.txt", "w", encoding="utf-8") as f:
-        f.write(debug_output)
-
-    print(debug_output)
-
-    dump_bin_as_text(target_path + ".bin")
+    lines = source.splitlines()
+    label_map, data_segment, text_segment = first_pass(lines)
+    data_code, data_debug = second_pass(data_segment, label_map)
+    text_code, text_debug = second_pass(text_segment, label_map)
+    write_binaries(text_code, data_code, text_debug, data_debug, target_path)
+    print(".text and .data binaries generated.")
 
 
 if __name__ == "__main__":
