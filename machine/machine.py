@@ -1,5 +1,5 @@
-import sys
 from machine.microcode import MicroInstruction, MicrocodeROM
+from tracer import Tracer
 
 
 class CPU:
@@ -20,14 +20,16 @@ class CPU:
 
         self.cu = ControlUnit()
         self.microcode_rom = MicrocodeROM()
+        self.tracer = Tracer(self)
 
     def step(self):
         microinstr = self.microcode_rom[self.mpc]
+        self.tracer.tick(microinstr)
         self.cu.execute(self, microinstr)
 
 
 class ControlUnit:
-    def execute(self, cpu: CPU, mi: "MicroInstruction"):
+    def execute(self, cpu: CPU, mi: MicroInstruction):
         if cpu.mpc == 1000:
             # Dispatch to correct microprogram start address
             opcode = cpu.ir & 0x7F
@@ -66,8 +68,7 @@ class ControlUnit:
             rd = (cpu.ir >> 7) & 0x1F # shift 7 to get rd (check isa), &0x1F to get rid of bits that are to the left
             addr = cpu.alu_out
             value = int.from_bytes(cpu.data_mem[addr : addr + 4], "little") # read whole word
-            print(f"[READ] addr=0x{addr:04X} -> t{rd} = 0x{value:08X}")
-            #cpu.registers[rd] = cpu.data_mem[cpu.alu_out]
+            #print(f"[READ] addr=0x{addr:04X} -> t{rd} = 0x{value:08X}")
             cpu.registers[rd] = value
 
         if mi.mem_write:
@@ -86,7 +87,7 @@ class ControlUnit:
             cpu.mpc = mi.next_mpc
 
 
-def should_jump(cpu, condition):
+def should_jump(cpu: CPU, condition):
     match condition:
         case "Z": return cpu.flags["Z"] == 1
         case "NZ": return cpu.flags["Z"] == 0
@@ -95,7 +96,7 @@ def should_jump(cpu, condition):
         case _: return False
 
 
-def extract_operands(cpu, mi):
+def extract_operands(cpu: CPU, mi: MicroInstruction):
     ir = cpu.ir
     rs1 = (ir >> 15) & 0x1F
     rs2 = (ir >> 20) & 0x1F

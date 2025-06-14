@@ -13,6 +13,7 @@ def run(instr_path, data_path):
     cpu = CPU(instr_mem, data_mem)
 
     print("==== MACHINE START ====")
+    # TODO: make step_count the same as tick_count in Microcode
     step_count = 0
     while cpu.running:
         cpu.step()
@@ -22,6 +23,8 @@ def run(instr_path, data_path):
             break
 
     print("==== MACHINE HALTED ====")
+    cpu.tracer.finish()
+    
     print("Output buffer:")
     print("".join(cpu.output_buffer))
 
