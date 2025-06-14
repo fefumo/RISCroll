@@ -20,14 +20,13 @@ def to_bytes(code: List[int]):
         else:
             raise ValueError("Unsupported instruction format")
 
-        binary_bytes.extend(
-            (
-                (binary_instr >> 24) & 0xFF,
-                (binary_instr >> 16) & 0xFF,
-                (binary_instr >> 8) & 0xFF,
-                binary_instr & 0xFF,
-            )
-        )
+        binary_bytes.extend((
+            binary_instr & 0xFF,
+            (binary_instr >> 8) & 0xFF,
+            (binary_instr >> 16) & 0xFF,
+            (binary_instr >> 24) & 0xFF,
+        ))
+
     return bytes(binary_bytes)
 
 
@@ -42,9 +41,9 @@ def to_hex(code: List[int], debug_info: List[Tuple[int, str, int]]) -> str:
 
 def translate(source: str):
     lines = source.splitlines()
-    symbol_table, data_segment, text_segment = first_pass(lines)
-    data_code, data_debug = second_pass(data_segment, symbol_table)
-    text_code, text_debug = second_pass(text_segment, symbol_table)
+    label_map, data_segment, text_segment = first_pass(lines)
+    data_code, data_debug = second_pass(data_segment, label_map)
+    text_code, text_debug = second_pass(text_segment, label_map)
     return data_code + text_code, data_debug + text_debug
 
 
@@ -52,7 +51,7 @@ def first_pass(
     lines: List[str],
 ) -> Tuple[Dict[str, int], List[Tuple[int, str]], List[Tuple[int, str]]]:
     addr_of_instr = 0
-    symbol_table = {}
+    label_map = {}
     section = None
     org = {".text": 0x0, ".data": 0x0}
     data_segment = []
@@ -77,7 +76,7 @@ def first_pass(
         if ":" in line:
             label, rest = line.split(":", 1)
             label = label.strip()
-            symbol_table[label] = addr_of_instr
+            label_map[label] = addr_of_instr
             line = rest.strip()  # there is a part left with a directive or instruction
 
             if not line:
@@ -86,25 +85,25 @@ def first_pass(
         if section == ".data":
             if line.startswith(".word"):
                 _, val = line.split(None, 1)
-                # symbol_table[f'data_{addr_of_instr:08x}'] = addr_of_instr
+                # label_map[f'data_{addr_of_instr:08x}'] = addr_of_instr
                 data_segment.append((addr_of_instr, f".word {val.strip()}"))
                 addr_of_instr += 4
             elif line.startswith(".byte"):
                 _, val = line.split(None, 1)
                 val = val.strip().strip("'\"")
                 for c in val:
-                    # symbol_table[f'data_{addr_of_instr:08x}'] = addr_of_instr
+                    # label_map[f'data_{addr_of_instr:08x}'] = addr_of_instr
                     data_segment.append((addr_of_instr, f".byte {ord(c)}"))
                     addr_of_instr += 1
         elif section == ".text":
             text_segment.append((addr_of_instr, line))
             addr_of_instr += 4
 
-    return symbol_table, data_segment, text_segment
+    return label_map, data_segment, text_segment
 
 
 def second_pass(
-    instructions: List[Tuple[int, str]], symbol_table: Dict[str, int]
+    instructions: List[Tuple[int, str]], label_map: Dict[str, int]
 ) -> Tuple[List[int], List[Tuple[int, str, int]]]:
     code = []
     debug_info = []
@@ -119,7 +118,7 @@ def second_pass(
             debug_info.append((addr_of_instr, line, val))
         else:
             instr = parse_line(line)
-            binary = encode(instr, symbol_table, addr_of_instr)
+            binary = encode(instr, label_map, addr_of_instr)
             code.append(binary)
             debug_info.append((addr_of_instr, line, binary))
     return code, debug_info
@@ -133,22 +132,22 @@ def parse_line(line: str):
 
 
 def get_token(
-    operand: str, symbol_table: Dict[str, int], pc: int = 0, relative: bool = False
+    operand: str, label_map: Dict[str, int], pc: int = 0, relative: bool = False
 ) -> int:
     operand = operand.strip(",")
     if operand.startswith("low("):
         label = operand[4:-1]
-        return symbol_table.get(label, 0) & 0xFFF
+        return label_map.get(label, 0) & 0xFFF
     elif operand.startswith("high("):
         label = operand[5:-1]
-        return (symbol_table.get(label, 0) >> 12) << 12
-    elif operand in symbol_table:
-        val = symbol_table[operand]
+        return (label_map.get(label, 0) >> 12) << 12
+    elif operand in label_map:
+        val = label_map[operand]
         return val - pc if relative else val
     return int(operand, 0)
 
-
-def encode(parsed, symbol_table: Dict[str, int], addr_of_instr: int) -> int:
+# TODO: write comms in `return` section of types
+def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
     instr, operands = parsed
     info = INSTRUCTION_SET[instr]
     opcode = info["opcode"]
@@ -172,10 +171,10 @@ def encode(parsed, symbol_table: Dict[str, int], addr_of_instr: int) -> int:
             # lw t0, 0(t0)
             offset, rs1_str = operands[1].split("(")
             rs1 = reg_to_num(rs1_str.rstrip(")"))
-            imm = get_token(offset, symbol_table)
+            imm = get_token(offset, label_map)
         else:
             rs1 = reg_to_num(operands[1])
-            imm = get_token(operands[2], symbol_table)
+            imm = get_token(operands[2], label_map)
 
         return (
             ((imm & 0xFFF) << 20)
@@ -189,7 +188,7 @@ def encode(parsed, symbol_table: Dict[str, int], addr_of_instr: int) -> int:
         rs2 = reg_to_num(operands[0])
         offset, rs1 = operands[1].split("(")
         rs1 = reg_to_num(rs1.rstrip(")"))
-        imm = get_token(offset, symbol_table)
+        imm = get_token(offset, label_map)
         imm11_5 = (imm >> 5) & 0x7F
         imm4_0 = imm & 0x1F
         return (
@@ -204,7 +203,7 @@ def encode(parsed, symbol_table: Dict[str, int], addr_of_instr: int) -> int:
     elif typ == "B":
         rs1 = reg_to_num(operands[0])
         rs2 = reg_to_num(operands[1])
-        offset = get_token(operands[2], symbol_table, addr_of_instr, relative=True)
+        offset = get_token(operands[2], label_map, addr_of_instr, relative=True)
         imm = offset & 0xFFF  # use lower 12 bits only
         return (
             (imm << 20)  # [31..20] = imm[11:0]
@@ -216,12 +215,12 @@ def encode(parsed, symbol_table: Dict[str, int], addr_of_instr: int) -> int:
 
     elif typ == "U":
         rd = reg_to_num(operands[0])
-        imm = get_token(operands[1], symbol_table)
+        imm = get_token(operands[1], label_map)
         return (imm & 0xFFFFF000) | (rd << 7) | opcode
 
     elif typ == "J":
         rd = reg_to_num(operands[0])
-        offset = get_token(operands[1], symbol_table, addr_of_instr, relative=True)
+        offset = get_token(operands[1], label_map, addr_of_instr, relative=True)
         imm = offset & 0xFFFFF000
         return (imm) | (rd << 7) | opcode
 
@@ -241,7 +240,7 @@ def dump_bin_as_text(bin_path: str):
         for i, (word,) in enumerate(words):
             addr = i * 4
             lines.append(f"{addr:08X} - {word:08X} - {word:032b}")
-            
+
     out_path = "out/binary_decode.txt"
 
     with open(out_path, "w", encoding="utf-8") as f:
@@ -262,12 +261,15 @@ def main(source_path, target_path):
         f.write(to_bytes(code))
 
     debug_output = to_hex(code, debug_info)
+    debug_output = (
+        "===== DEBUG INFO =====\n"
+        + "format: \nAddr - hex_word - bin_word - mnemonic\n"
+        + debug_output
+    )
+    
     with open(target_path + ".dbg.txt", "w", encoding="utf-8") as f:
         f.write(debug_output)
 
-    print(
-        "\n===== DEBUG INFO =====\n" + "format: \nAddr - hex_word - bin_word - mnemonic"
-    )
     print(debug_output)
 
     dump_bin_as_text(target_path + ".bin")
