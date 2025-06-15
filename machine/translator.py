@@ -1,3 +1,4 @@
+import codecs
 from enum import auto
 import struct
 from typing import Dict, List, Tuple
@@ -12,25 +13,35 @@ def reg_to_num(reg):
     return ALIAS_REGISTERS[reg.strip(",")]
 
 
-def to_bytes(code: List[int]):
+def to_bytes_data(data_code: List[Tuple[int, str, int]]) -> bytes:
     binary_bytes = bytearray()
-    for instr in code:
-        if isinstance(instr, int):
-            binary_instr = instr
-        else:
-            raise ValueError("Unsupported instruction format")
 
-        binary_bytes.extend(
-            (
-                binary_instr & 0xFF,
-                (binary_instr >> 8) & 0xFF,
-                (binary_instr >> 16) & 0xFF,
-                (binary_instr >> 24) & 0xFF,
-            )
-        )
+    for _, line, val in data_code:
+        if line.startswith(".byte"):
+            binary_bytes.append(val & 0xFF)
+        elif line.startswith(".word"):
+            binary_bytes.extend([
+                val & 0xFF,
+                (val >> 8) & 0xFF,
+                (val >> 16) & 0xFF,
+                (val >> 24) & 0xFF
+            ])
+        else:
+            raise ValueError(f"Unsupported line format: {line}")
 
     return bytes(binary_bytes)
 
+
+def to_bytes_text(text_code) -> bytes:
+    binary_bytes = bytearray()
+    for instr in text_code:
+        binary_bytes.extend([
+            instr & 0xFF,
+            (instr >> 8) & 0xFF,
+            (instr >> 16) & 0xFF,
+            (instr >> 24) & 0xFF
+        ])
+    return bytes(binary_bytes)
 
 def to_hex(code: List[int], debug_info: List[Tuple[int, str, int]]) -> str:
     result = []
@@ -88,9 +99,11 @@ def first_pass(
             elif line.startswith(".byte"):
                 _, val = line.split(None, 1)
                 val = val.strip().strip("'\"")
-                for c in val:
+                decoded = codecs.decode(val.encode("utf-8"), "unicode_escape")
+                for c in decoded:
                     data_segment.append((addr_of_instr, f".byte {ord(c)}"))
                     addr_of_instr += 1
+
         elif section == ".text":
             text_segment.append((addr_of_instr, line))
             addr_of_instr += 4
@@ -102,7 +115,7 @@ def second_pass(
     instructions: List[Tuple[int, str]], label_map: Dict[str, int]
 ) -> Tuple[List[int], List[Tuple[int, str, int]]]:
     """
-    Сonvert instructions and data to machine code.
+    Convert instructions and data to machine code.
 
     Returns:
         - list of binary instructions/data
@@ -133,7 +146,7 @@ def parse_line(line: str):
     operands = parts[1:] if len(parts) > 1 else []
     return (instr, operands)
 
-
+# TODO: check if .get() with default value is ok or not
 def get_token(
     operand: str, label_map: Dict[str, int], pc: int = 0, relative: bool = False
 ) -> int:
@@ -161,12 +174,17 @@ def get_token(
         return label_map.get(label, 0) & 0xFFF
     elif operand.startswith("high("):
         label = operand[5:-1]
-        return (label_map.get(label, 0) >> 12) << 12
+        return label_map.get(label, 0) & 0xFFFFF000
     elif operand in label_map:
         val = label_map[operand]
         return val - pc if relative else val
     return int(operand, 0)
 
+def twos_complement(value, bits):
+    """ Used for relative jumps (B-type) that can have a negative offset."""
+    if value < 0:
+        value = (1 << bits) + value
+    return value
 
 # TODO: write comms in `return` section of types
 def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
@@ -226,7 +244,7 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
         rs1 = reg_to_num(operands[0])
         rs2 = reg_to_num(operands[1])
         offset = get_token(operands[2], label_map, addr_of_instr, relative=True)
-        imm = offset & 0xFFF  # use lower 12 bits only
+        imm = twos_complement(offset, 12)
         return (
             (imm << 20)  # [31..20] = imm[11:0]
             | (rs2 << 15)  # [19..15]
@@ -243,8 +261,8 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
     elif typ == "J":
         rd = reg_to_num(operands[0])
         offset = get_token(operands[1], label_map, addr_of_instr, relative=True)
-        imm = offset & 0xFFFFF000
-        return (imm) | (rd << 7) | opcode
+        imm = twos_complement(offset >> 12, 20)  # PC-relative offset 20 bit
+        return (imm << 12) | (rd << 7) | opcode
 
     elif typ == "SYS":
         return (0b1111111 << 25) | opcode
@@ -271,10 +289,10 @@ def dump_bin_as_text(bin_path: str):
 
 def write_binaries(text_code, data_code, debug_info_text, debug_info_data, target_path):
     with open(target_path + ".text.bin", "wb") as f:
-        f.write(to_bytes(text_code))
+        f.write(to_bytes_text(text_code))
 
     with open(target_path + ".data.bin", "wb") as f:
-        f.write(to_bytes(data_code))
+        f.write(to_bytes_data(debug_info_data))
 
     with open(target_path + ".text.log", "w", encoding="utf-8") as f:
         f.write(to_hex(text_code, debug_info_text))
