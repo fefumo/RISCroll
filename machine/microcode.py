@@ -139,10 +139,11 @@ class MicrocodeROM:
                 )
 
             elif t == "B":
-                addr = self.alloc(2)
+                addr = self.alloc(3)
                 cond_map = {"beq": "Z", "bne": "NZ", "bgt": "GT", "ble": "LE"}
                 cond = cond_map[op]
                 self.register_decode(opcode, funct3, None, addr)
+
                 self.code[addr] = MicroInstruction(
                     comment=f"B-{op} cmp",
                     latch_alu="sub",
@@ -150,6 +151,11 @@ class MicrocodeROM:
                     next_mpc=addr + 1,
                 )
                 self.code[addr + 1] = MicroInstruction(
+                    comment="B-{op} offset",
+                    latch_alu="branch_offset",
+                    next_mpc=addr + 2,
+                )
+                self.code[addr + 2] = MicroInstruction(
                     comment="B-cond", latch_pc="branch", jump_if=cond, next_mpc=0
                 )
 
@@ -166,11 +172,14 @@ class MicrocodeROM:
             elif t == "J":
                 addr = self.alloc(2)
                 self.register_decode(opcode, None, None, addr)
+                # save PC + 4
                 self.code[addr] = MicroInstruction(
-                    comment="J-JAL calc", latch_alu="jal", next_mpc=addr + 1
+                    latch_alu="jal_link", latch_reg="rd", next_mpc=addr + 1
                 )
+
+                # perform jump
                 self.code[addr + 1] = MicroInstruction(
-                    comment="J-JAL jump", latch_pc="alu", next_mpc=0
+                    latch_alu="jal_offset", latch_pc="alu", next_mpc=0
                 )
 
             elif t == "SYS":
