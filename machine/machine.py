@@ -1,3 +1,4 @@
+from typing import Tuple
 from machine.microcode import MicroInstruction, MicrocodeROM
 from tracer import Tracer
 
@@ -48,14 +49,8 @@ class ControlUnit:
             word = int.from_bytes(cpu.instr_mem[cpu.pc : cpu.pc + 4], "little")
             cpu.ir = word
 
-        if mi.latch_pc == "inc":
-            cpu.pc += 4
-        elif mi.latch_pc == "alu":
-            cpu.pc = cpu.alu_out
-        elif mi.latch_pc == "branch":
-            if should_jump(cpu, mi.jump_if):
-                cpu.pc = cpu.alu_out
 
+        # === ALU stage must happen before PC update ===
         if mi.latch_alu:
             a, b = extract_operands(cpu, mi)
             cpu.alu_out = ALU.exec(mi.latch_alu, a, b)
@@ -63,6 +58,14 @@ class ControlUnit:
             if mi.set_flags:
                 cpu.flags["Z"] = int(cpu.alu_out == 0)
                 cpu.flags["N"] = int(cpu.alu_out < 0)
+
+        if mi.latch_pc == "inc":
+            cpu.pc += 4
+        elif mi.latch_pc == "alu":
+            cpu.pc = cpu.alu_out
+        elif mi.latch_pc == "branch":
+            if should_jump(cpu, mi.jump_if):
+                cpu.pc = cpu.alu_out
 
         if mi.mem_read:
             rd = (
@@ -75,6 +78,7 @@ class ControlUnit:
             # print(f"[READ] addr=0x{addr:04X} -> t{rd} = 0x{value:08X}")
             cpu.registers[rd] = value
 
+        # FIXME: solve the output buffer at 0x2 hardcoded problem
         if mi.mem_write:
             addr = cpu.alu_out
             val = cpu.registers[(cpu.ir >> 20) & 0x1F] & 0xFF  # rs2
@@ -85,8 +89,11 @@ class ControlUnit:
 
         # Register write back
         if isinstance(mi.latch_reg, str) and mi.latch_reg == "rd":
-            rd = (cpu.ir >> 7) & 0x1F
-            cpu.registers[rd] = cpu.alu_out
+            rd = (cpu.ir >> 7) & 0x1F  # rd = instr[11..7]
+            # if rd == 0 then the register isnt used. for example, in jal command
+            # jal r0, <label> essentialy works as goto <label>
+            if rd != 0:
+                cpu.registers[rd] = cpu.alu_out
         elif mi.latch_reg is not None:
             cpu.registers[mi.latch_reg] = cpu.alu_out
 
@@ -108,41 +115,90 @@ def should_jump(cpu: CPU, condition):
             return False
 
 
-# TODO: separate??
+# that's tough man...
 def extract_operands(cpu: CPU, mi: MicroInstruction):
     ir = cpu.ir
-    rs1 = (ir >> 15) & 0x1F
-    rs2 = (ir >> 20) & 0x1F
-    imm_i = (ir >> 20) & 0xFFF
-    if imm_i & 0x800:
-        imm_i |= ~0xFFF  # Sign-extend
-
     opcode = ir & 0x7F
 
-    if opcode == 0x13:
-        return cpu.registers[rs1], imm_i
-    elif opcode == 0x03:  # lw
-        return cpu.registers[rs1], imm_i
-    elif opcode == 0x23:  # sw
-        imm_s = ((ir >> 25) << 5) | ((ir >> 7) & 0x1F)
-        if imm_s & 0x800:
-            imm_s |= ~0xFFF
-        return cpu.registers[rs1], imm_s
-    elif opcode == 0x33:  # R-type
-        return cpu.registers[rs1], cpu.registers[rs2]
-    elif opcode == 0x67:  # jalr
-        return cpu.registers[rs1], imm_i
-    elif opcode == 0x6F:  # jal
-        imm_j = (
-            ((ir >> 31) << 20)
-            | (((ir >> 21) & 0x3FF) << 1)
-            | (((ir >> 20) & 0x1) << 11)
-            | (((ir >> 12) & 0xFF) << 12)
-        )
-        if imm_j & (1 << 20):
-            imm_j |= ~((1 << 21) - 1)
-        return cpu.pc, imm_j
-    return 0, 0  # fallback
+    if opcode == 0x33:
+        return extract_operands_r(cpu, ir)
+
+    elif opcode in (0x13, 0x03, 0x67):  # I-type: addi, lw, jalr
+        return extract_operands_i(cpu, ir)
+
+    elif opcode == 0x23:  # S-type: sw
+        return extract_operands_s(cpu, ir)
+
+    elif opcode == 0x63:  # B-type: beq, etc.
+        if mi.latch_alu == "branch_offset":
+            return cpu.pc - 4, extract_b_type_imm(cpu.ir) # pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 5 HOURS ON THIG BUG BRO
+        else:
+            return extract_operands_b(cpu, ir)
+
+    elif opcode == 0x6F:  # J-type: jal
+        if mi.latch_alu == "jal_link":
+            return cpu.pc, 4
+        elif mi.latch_alu == "jal_offset":
+            return extract_operands_j(cpu, ir)
+
+    elif opcode == 0x37:  # U-type: lui
+        return extract_operands_u(cpu, ir)
+
+    raise ValueError(f"Unsupported opcode {opcode:#x} in extract_operands")
+
+
+
+def extract_operands_r(cpu: CPU, ir: int) -> Tuple[int, int]:
+    rs1 = (ir >> 15) & 0x1F
+    rs2 = (ir >> 20) & 0x1F
+    return cpu.registers[rs1], cpu.registers[rs2]
+
+
+def extract_operands_i(cpu: CPU, ir: int) -> Tuple[int, int]:
+    rs1 = (ir >> 15) & 0x1F
+    imm = (ir >> 20) & 0xFFF
+    if imm & 0x800:
+        imm |= ~0xFFF
+    return cpu.registers[rs1], imm
+
+
+def extract_operands_s(cpu: CPU, ir: int) -> Tuple[int, int]:
+    rs1 = (ir >> 15) & 0x1F
+    imm_11_5 = (ir >> 25) & 0x7F
+    imm_4_0 = (ir >> 7) & 0x1F
+    imm = (imm_11_5 << 5) | imm_4_0
+    if imm & 0x800:
+        imm |= ~0xFFF
+    return cpu.registers[rs1], imm
+
+
+def extract_b_type_imm(ir: int) -> int:
+    imm = (ir >> 20) & 0xFFF
+    if imm & 0x800:
+        imm |= ~0xFFF
+    return imm
+
+
+def extract_operands_b(cpu: CPU, ir: int) -> Tuple[int, int]:
+    rs1 = (ir >> 10) & 0x1F  # [14..10]
+    rs2 = (ir >> 15) & 0x1F  # [19..15]
+    # imm = (ir >> 20) & 0xFFF  # [31..20]
+    # if imm & 0x800:
+    #     imm |= ~0xFFF  # sign extend
+    return cpu.registers[rs1], cpu.registers[rs2]
+
+
+def extract_operands_j(cpu: CPU, ir: int) -> Tuple[int, int]:
+    imm = (ir >> 12) & 0xFFFFF  # get 20 bits
+    if imm & (1 << 19):  # if negative
+        imm |= ~((1 << 20) - 1)  # sign-extend
+    offset = imm << 12  # get full offset
+    return cpu.pc, offset  # ALU: pc + offset
+
+
+def extract_operands_u(cpu: CPU, ir: int) -> Tuple[int, int]:
+    imm = ir & 0xFFFFF000
+    return 0, imm
 
 
 class ALU:
@@ -168,6 +224,10 @@ class ALU:
             return a >> b
         if op == "lui":
             return b << 12
-        if op == "jal":
+        if op == "jal_link":  # PC + 4
             return a + b
+        if op == "jal_offset":  # PC + offset
+            return a + b
+        if op == "branch_offset":
+            return a + b  # a = pc, b = imm
         return 0
