@@ -13,16 +13,12 @@ main:
     # int t0 = *t0
     lw t0, 0(t0)
 
-    addi t1, t1, buf
+    addi t1, t1, buf # t1 <- &buf
     addi t2, r0, 13 # n = 13
-
-    # a1 <- &buf
-    lui a1, high(buf)
-    addi a1, a1, low(buf)
 
 
 loop:
-    lw t3, 0(a1) # read symbol from buf
+    lw t3, 0(t1) # read symbol from buf
     sw t3, 0(t0) # output
     addi t2, t2, -1 # n--
     addi t1, t1, 1 # buf++
