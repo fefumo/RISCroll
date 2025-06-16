@@ -20,35 +20,36 @@ def to_bytes_data(data_code: List[Tuple[int, str, int]]) -> bytes:
         if line.startswith(".byte"):
             binary_bytes.append(val & 0xFF)
         elif line.startswith(".word"):
-            binary_bytes.extend([
-                val & 0xFF,
-                (val >> 8) & 0xFF,
-                (val >> 16) & 0xFF,
-                (val >> 24) & 0xFF
-            ])
+            binary_bytes.extend(
+                [val & 0xFF, (val >> 8) & 0xFF, (val >> 16) & 0xFF, (val >> 24) & 0xFF]
+            )
         else:
             raise ValueError(f"Unsupported line format: {line}")
 
     return bytes(binary_bytes)
 
 
-def to_bytes_text(text_code) -> bytes:
+def to_bytes_text(text_code: List[int], entry_point: int) -> bytes:
     binary_bytes = bytearray()
+    binary_bytes.extend(entry_point.to_bytes(4, "little"))
     for instr in text_code:
-        binary_bytes.extend([
-            instr & 0xFF,
-            (instr >> 8) & 0xFF,
-            (instr >> 16) & 0xFF,
-            (instr >> 24) & 0xFF
-        ])
+        binary_bytes.extend(
+            [
+                instr & 0xFF,
+                (instr >> 8) & 0xFF,
+                (instr >> 16) & 0xFF,
+                (instr >> 24) & 0xFF,
+            ]
+        )
     return bytes(binary_bytes)
+
 
 def to_hex(code: List[int], debug_info: List[Tuple[int, str, int]]) -> str:
     result = []
     for (addr, mnemonic, _), word in zip(debug_info, code):
         hex_word = f"{word:08X}"
         bin_word = f"{word:032b}"
-        result.append(f"{addr:08X} - {hex_word} - {bin_word} - {mnemonic}")
+        result.append(f"{addr:08X}(int {addr}) - {hex_word} - {bin_word} - {mnemonic}")
     return "\n".join(result)
 
 
@@ -146,6 +147,7 @@ def parse_line(line: str):
     operands = parts[1:] if len(parts) > 1 else []
     return (instr, operands)
 
+
 # TODO: check if .get() with default value is ok or not
 def get_token(
     operand: str, label_map: Dict[str, int], pc: int = 0, relative: bool = False
@@ -180,8 +182,9 @@ def get_token(
         return val - pc if relative else val
     return int(operand, 0)
 
+
 def twos_complement(value, bits):
-    """ 
+    """
     Used for relative jumps (B-type) that can have a negative offset.
         twos_complement(+4, 12) -> 4 # 0b000000000100
         twos_complement(-4, 12) -> 4092 #0b111111111100
@@ -193,6 +196,7 @@ def twos_complement(value, bits):
     if value < 0:
         value = (1 << bits) + value
     return value
+
 
 # TODO: write comms in `return` section of types
 def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
@@ -254,20 +258,20 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
         assert offset % 2 == 0, "B-type offset must be 2-byte aligned"
         imm = twos_complement(offset, 13)  # 13 bit for sign + 12 for val
 
-        imm_11 = (imm >> 11) & 0x1       # bit 7
-        imm_4_1 = (imm >> 1) & 0xF       # bits 8–11
-        imm_10_5 = (imm >> 5) & 0x3F     # bits 25–30
-        imm_12 = (imm >> 12) & 0x1       # bit 31
+        imm_11 = (imm >> 11) & 0x1  # bit 7
+        imm_4_1 = (imm >> 1) & 0xF  # bits 8–11
+        imm_10_5 = (imm >> 5) & 0x3F  # bits 25–30
+        imm_12 = (imm >> 12) & 0x1  # bit 31
 
         return (
-            (imm_12 << 31) |
-            (imm_10_5 << 25) |
-            (rs2 << 20) |
-            (rs1 << 15) |
-            (info["funct3"] << 12) |
-            (imm_4_1 << 8) |
-            (imm_11 << 7) |
-            opcode
+            (imm_12 << 31)
+            | (imm_10_5 << 25)
+            | (rs2 << 20)
+            | (rs1 << 15)
+            | (info["funct3"] << 12)
+            | (imm_4_1 << 8)
+            | (imm_11 << 7)
+            | opcode
         )
 
     elif typ == "U":
@@ -315,18 +319,17 @@ def dump_bin_as_text(bin_path: str):
         f.write("\n".join(lines))
 
 
-def write_binaries(text_code, data_code, debug_info_text, debug_info_data, target_path):
-    with open(target_path + ".text.bin", "wb") as f:
-        f.write(to_bytes_text(text_code))
+def write_binaries(text_code, data_code, text_debug, data_debug, target_path):
 
+    # TODO: it has to be data_code even tho data_debug is actually correct here. think of better naming or smth
     with open(target_path + ".data.bin", "wb") as f:
-        f.write(to_bytes_data(debug_info_data))
+        f.write(to_bytes_data(data_debug))
 
     with open(target_path + ".text.log", "w", encoding="utf-8") as f:
-        f.write(to_hex(text_code, debug_info_text))
+        f.write(to_hex(text_code, text_debug))
 
     with open(target_path + ".data.log", "w", encoding="utf-8") as f:
-        f.write(to_hex(data_code, debug_info_data))
+        f.write(to_hex(data_code, data_debug))
 
 
 def main(source_path, target_path):
@@ -339,8 +342,14 @@ def main(source_path, target_path):
 
     lines = source.splitlines()
     label_map, data_segment, text_segment = first_pass(lines)
+    text_segment_start_address = text_segment[0][0]
     data_code, data_debug = second_pass(data_segment, label_map)
     text_code, text_debug = second_pass(text_segment, label_map)
+
+    # a little messy, but i have to do it since i gotta put initial text segment addr
+    with open(target_path + ".text.bin", "wb") as f:
+        f.write(to_bytes_text(text_code, text_segment_start_address))
+
     write_binaries(text_code, data_code, text_debug, data_debug, target_path)
     print(".text and .data binaries generated.")
 
