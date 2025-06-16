@@ -66,7 +66,11 @@ class MicrocodeROM:
             If not found: ignore everything except opcode -> (opcode, None, None)
             If nothing found: return 9999 (HALT address)
         """
-        result = self.decode_table.get((opcode, funct3, funct7)) or self.decode_table.get((opcode, funct3, None)) or self.decode_table.get((opcode, None, None))
+        result = (
+            self.decode_table.get((opcode, funct3, funct7))
+            or self.decode_table.get((opcode, funct3, None))
+            or self.decode_table.get((opcode, None, None))
+        )
         if result is None:
             raise ValueError(
                 f"Unsupported instruction: opcode=0b{opcode:07b} (0x{opcode:02X}), "
@@ -110,12 +114,17 @@ class MicrocodeROM:
                         comment="I-LW load", mem_read=True, latch_reg=3, next_mpc=0
                     )
                 elif op == "jalr":
-                    addr = self.alloc(2)
+                    addr = self.alloc(3)
                     self.register_decode(opcode, funct3, None, addr)
                     self.code[addr] = MicroInstruction(
-                        comment="I-JALR addr", latch_alu="add", next_mpc=addr + 1
+                        comment="I-JALR save return address",
+                        latch_reg="rd_pc",
+                        next_mpc=addr + 1,
                     )
                     self.code[addr + 1] = MicroInstruction(
+                        comment="I-JALR addr", latch_alu="add", next_mpc=addr + 2
+                    )
+                    self.code[addr + 2] = MicroInstruction(
                         comment="I-JALR jump", latch_pc="alu", next_mpc=0
                     )
                 else:
@@ -177,12 +186,18 @@ class MicrocodeROM:
                 self.register_decode(opcode, None, None, addr)
                 # save PC + 4
                 self.code[addr] = MicroInstruction(
-                    comment="J-JAL link", latch_alu="jal_link", latch_reg="rd", next_mpc=addr + 1
+                    comment="J-JAL link",
+                    latch_alu="jal_link",
+                    latch_reg="rd",
+                    next_mpc=addr + 1,
                 )
 
                 # perform jump
                 self.code[addr + 1] = MicroInstruction(
-                    comment="J-JAL jump", latch_alu="jal_offset", latch_pc="alu", next_mpc=0
+                    comment="J-JAL jump",
+                    latch_alu="jal_offset",
+                    latch_pc="alu",
+                    next_mpc=0,
                 )
 
             elif t == "SYS":
