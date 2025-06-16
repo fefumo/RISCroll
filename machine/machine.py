@@ -157,19 +157,19 @@ def extract_operands(cpu: CPU, mi: MicroInstruction):
 
     elif opcode == 0x63:  # B-type: beq, etc.
         first, second, imm = extract_operands_b(cpu, ir)
-        cpu.pc -= 4  # to work with current pc
+        #cpu.pc -= 4  # to work with current pc
         if mi.latch_alu == "branch_offset":
             return (
-                cpu.pc,
+                cpu.pc - 4,
                 imm,
-            )  # pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 5 HOURS ON THIG BUG BRO
+            )  # pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 10+ HOURS ON THIG BUG BRO
         else:
             return first, second
 
     elif opcode == 0x6F:  # J-type: jal
-        cpu.pc -= 4  # to work with current pc (cur pc is incremented after FETCH phase)
+        #cpu.pc -= 4  # to work with current pc (cur pc is incremented after FETCH phase)
         if mi.latch_alu == "jal_link":
-            return cpu.pc, 4
+            return cpu.pc - 4, 4
         elif mi.latch_alu == "jal_offset":
             return extract_operands_j(cpu, ir)
 
@@ -207,7 +207,8 @@ def extract_operands_s(cpu: CPU, ir: int) -> Tuple[int, int]:
     imm = (imm_11_5 << 5) | imm_4_0
     if imm & 0x800:
         imm |= -1 << 12  # sign-extend 12-bit immediate
-    return cpu.registers[rs1], imm
+    rs1_val = cpu.registers[rs1]
+    return rs1_val, imm
 
 
 def extract_operands_b(cpu: CPU, ir: int) -> Tuple[int, int, int]:
@@ -222,7 +223,9 @@ def extract_operands_b(cpu: CPU, ir: int) -> Tuple[int, int, int]:
     if imm & 0x1000:
         imm |= -1 << 13  # sign-extend 13-bit immediate (imm[12] is sign bit)
 
-    return cpu.registers[rs1], cpu.registers[rs2], imm
+    rs1_val = cpu.registers[rs1]
+    rs2_val = cpu.registers[rs2]
+    return rs1_val, rs2_val, imm
 
 
 def extract_operands_u(cpu: CPU, ir: int) -> Tuple[int, int]:
@@ -242,7 +245,7 @@ def extract_operands_j(cpu: CPU, ir: int) -> Tuple[int, int]:
     if imm & (1 << 20):
         imm |= -1 << 21
 
-    return cpu.pc, imm
+    return cpu.pc - 4, imm
 
 
 class ALU:
