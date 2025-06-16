@@ -181,7 +181,15 @@ def get_token(
     return int(operand, 0)
 
 def twos_complement(value, bits):
-    """ Used for relative jumps (B-type) that can have a negative offset."""
+    """ 
+    Used for relative jumps (B-type) that can have a negative offset.
+        twos_complement(+4, 12) -> 4 # 0b000000000100
+        twos_complement(-4, 12) -> 4092 #0b111111111100
+        twos_complement(-1, 13) -> 8191 # 0b1111111111111
+
+    This is necessary to correctly represent negative values.
+    in a fixed number of bits (for example, for B- and J-type instructions).
+    """
     if value < 0:
         value = (1 << bits) + value
     return value
@@ -206,7 +214,6 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
 
     elif typ == "I":
         rd = reg_to_num(operands[0])
-
         if "(" in operands[1]:
             # lw t0, 0(t0)
             offset, rs1_str = operands[1].split("(")
@@ -215,7 +222,6 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
         else:
             rs1 = reg_to_num(operands[1])
             imm = get_token(operands[2], label_map)
-
         return (
             ((imm & 0xFFF) << 20)
             | (rs1 << 15)
@@ -244,13 +250,24 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
         rs1 = reg_to_num(operands[0])
         rs2 = reg_to_num(operands[1])
         offset = get_token(operands[2], label_map, addr_of_instr, relative=True)
-        imm = twos_complement(offset, 12)
+
+        assert offset % 2 == 0, "B-type offset must be 2-byte aligned"
+        imm = twos_complement(offset, 13)  # 13 bit for sign + 12 for val
+
+        imm_11 = (imm >> 11) & 0x1       # bit 7
+        imm_4_1 = (imm >> 1) & 0xF       # bits 8–11
+        imm_10_5 = (imm >> 5) & 0x3F     # bits 25–30
+        imm_12 = (imm >> 12) & 0x1       # bit 31
+
         return (
-            (imm << 20)  # [31..20] = imm[11:0]
-            | (rs2 << 15)  # [19..15]
-            | (rs1 << 10)  # [14..10]
-            | (info["funct3"] << 7)  # [9..7]
-            | opcode  # [6..0]
+            (imm_12 << 31) |
+            (imm_10_5 << 25) |
+            (rs2 << 20) |
+            (rs1 << 15) |
+            (info["funct3"] << 12) |
+            (imm_4_1 << 8) |
+            (imm_11 << 7) |
+            opcode
         )
 
     elif typ == "U":
@@ -261,11 +278,22 @@ def encode(parsed, label_map: Dict[str, int], addr_of_instr: int) -> int:
     elif typ == "J":
         rd = reg_to_num(operands[0])
         offset = get_token(operands[1], label_map, addr_of_instr, relative=True)
-        imm = twos_complement(offset >> 12, 20)  # PC-relative offset 20 bit
-        return (imm << 12) | (rd << 7) | opcode
+        imm = twos_complement(offset, 21)
+        imm_20 = (imm >> 20) & 0x1
+        imm_10_1 = (imm >> 1) & 0x3FF
+        imm_11 = (imm >> 11) & 0x1
+        imm_19_12 = (imm >> 12) & 0xFF
+        return (
+            (imm_20 << 31)
+            | (imm_10_1 << 21)
+            | (imm_11 << 20)
+            | (imm_19_12 << 12)
+            | (rd << 7)
+            | opcode
+        )
 
     elif typ == "SYS":
-        return (0b1111111 << 25) | opcode
+        return opcode  # opcode is already 0x7F for `halt`
 
     else:
         raise NotImplementedError(f"Unsupported instruction type: {typ}")
