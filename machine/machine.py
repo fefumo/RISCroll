@@ -14,6 +14,7 @@ class CPU:
         self.alu_out = 0
         self.flags = {"Z": 0, "N": 0}
         self.output_buffer = []
+        self.input_buffer = []
         self.running = True
 
         # Load initial data memory
@@ -22,6 +23,16 @@ class CPU:
         self.cu = ControlUnit()
         self.microcode_rom = MicrocodeROM()
         self.tracer = Tracer(self)
+
+    def load_input_file(self, filename):
+        with open(filename, "rb") as f:
+            data = f.read()
+        
+        # null terminate
+        if not data.endswith(b'\x00'):
+            data += b'\x00'
+        
+        self.input_buffer = list(data)
 
     def step(self):
         microinstr = self.microcode_rom[self.mpc]
@@ -32,6 +43,7 @@ class CPU:
 class ControlUnit:
     def execute(self, cpu: CPU, mi: MicroInstruction):
         if cpu.mpc == 1000:
+            """======= DECODE DISPATCH ======="""
             # Dispatch to correct microprogram start address
             opcode = cpu.ir & 0x7F
             funct3 = (cpu.ir >> 12) & 0x7
@@ -48,7 +60,6 @@ class ControlUnit:
         if mi.latch_ir:
             word = int.from_bytes(cpu.instr_mem[cpu.pc : cpu.pc + 4], "little")
             cpu.ir = word
-
 
         # === ALU stage must happen before PC update ===
         if mi.latch_alu:
@@ -76,11 +87,20 @@ class ControlUnit:
                 cpu.data_mem[addr : addr + 4], "little"
             )  # read whole word
             # print(f"[READ] addr=0x{addr:04X} -> t{rd} = 0x{value:08X}")
+            if addr == 0x1:
+                if cpu.input_buffer:
+                    value = cpu.input_buffer.pop(0)
+                else:
+                    value = 0  # EOF
+            else:
+                value = int.from_bytes(cpu.data_mem[addr : addr + 4], "little")
+                
             cpu.registers[rd] = value
 
         # FIXME: solve the output buffer at 0x2 hardcoded problem
         if mi.mem_write:
             addr = cpu.alu_out
+            # FIXME: it's sb, not sw at this point.
             val = cpu.registers[(cpu.ir >> 20) & 0x1F] & 0xFF  # rs2
             if addr == 0x2:
                 cpu.output_buffer.append(chr(val))  # Output character
@@ -130,10 +150,11 @@ def extract_operands(cpu: CPU, mi: MicroInstruction):
         return extract_operands_s(cpu, ir)
 
     elif opcode == 0x63:  # B-type: beq, etc.
+        first, second, imm = extract_operands_b(cpu, ir)
         if mi.latch_alu == "branch_offset":
-            return cpu.pc - 4, extract_b_type_imm(cpu.ir) # pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 5 HOURS ON THIG BUG BRO
+            return cpu.pc - 4, imm# pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 5 HOURS ON THIG BUG BRO
         else:
-            return extract_operands_b(cpu, ir)
+            return first, second
 
     elif opcode == 0x6F:  # J-type: jal
         if mi.latch_alu == "jal_link":
@@ -147,7 +168,6 @@ def extract_operands(cpu: CPU, mi: MicroInstruction):
     raise ValueError(f"Unsupported opcode {opcode:#x} in extract_operands")
 
 
-
 def extract_operands_r(cpu: CPU, ir: int) -> Tuple[int, int]:
     rs1 = (ir >> 15) & 0x1F
     rs2 = (ir >> 20) & 0x1F
@@ -158,48 +178,47 @@ def extract_operands_i(cpu: CPU, ir: int) -> Tuple[int, int]:
     rs1 = (ir >> 15) & 0x1F
     imm = (ir >> 20) & 0xFFF
     if imm & 0x800:
-        imm |= ~0xFFF
+        imm |= -1 << 12  # sign-extend 12-bit immediate
     return cpu.registers[rs1], imm
 
 
 def extract_operands_s(cpu: CPU, ir: int) -> Tuple[int, int]:
     rs1 = (ir >> 15) & 0x1F
+    #rs2 = (ir >> 20) & 0x1F
     imm_11_5 = (ir >> 25) & 0x7F
     imm_4_0 = (ir >> 7) & 0x1F
     imm = (imm_11_5 << 5) | imm_4_0
     if imm & 0x800:
-        imm |= ~0xFFF
+        imm |= -1 << 12  # sign-extend 12-bit immediate
     return cpu.registers[rs1], imm
 
 
-def extract_b_type_imm(ir: int) -> int:
-    imm = (ir >> 20) & 0xFFF
-    if imm & 0x800:
-        imm |= ~0xFFF
-    return imm
+def extract_operands_b(cpu: CPU, ir: int) -> Tuple[int, int, int]:
+    rs1 = (ir >> 15) & 0x1F
+    rs2 = (ir >> 20) & 0x1F
+    imm_12 = (ir >> 31) & 0x1
+    imm_10_5 = (ir >> 25) & 0x3F
+    imm_4_1 = (ir >> 8) & 0xF
+    imm_11 = (ir >> 7) & 0x1
 
+    imm = (imm_12 << 12) | (imm_11 << 11) | (imm_10_5 << 5) | (imm_4_1 << 1)
+    if imm & 0x1000:
+        imm |= -1 << 13  # sign-extend 13-bit immediate (imm[12] is sign bit)
 
-def extract_operands_b(cpu: CPU, ir: int) -> Tuple[int, int]:
-    rs1 = (ir >> 10) & 0x1F  # [14..10]
-    rs2 = (ir >> 15) & 0x1F  # [19..15]
-    # imm = (ir >> 20) & 0xFFF  # [31..20]
-    # if imm & 0x800:
-    #     imm |= ~0xFFF  # sign extend
-    return cpu.registers[rs1], cpu.registers[rs2]
-
-
-def extract_operands_j(cpu: CPU, ir: int) -> Tuple[int, int]:
-    imm = (ir >> 12) & 0xFFFFF  # get 20 bits
-    if imm & (1 << 19):  # if negative
-        imm |= ~((1 << 20) - 1)  # sign-extend
-    offset = imm << 12  # get full offset
-    return cpu.pc, offset  # ALU: pc + offset
+    return cpu.registers[rs1], cpu.registers[rs2], imm
 
 
 def extract_operands_u(cpu: CPU, ir: int) -> Tuple[int, int]:
     imm = ir & 0xFFFFF000
     return 0, imm
 
+
+def extract_operands_j(cpu: CPU, ir: int) -> Tuple[int, int]:
+    imm = (ir >> 12) & 0xFFFFF
+    if imm & (1 << 19):
+        imm |= -1 << 20  # sign-extend 20-bit immediate
+    offset = imm << 12
+    return cpu.pc, offset
 
 class ALU:
     @staticmethod
