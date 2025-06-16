@@ -151,12 +151,14 @@ def extract_operands(cpu: CPU, mi: MicroInstruction):
 
     elif opcode == 0x63:  # B-type: beq, etc.
         first, second, imm = extract_operands_b(cpu, ir)
+        cpu.pc -= 4 # to work with current pc
         if mi.latch_alu == "branch_offset":
-            return cpu.pc - 4, imm# pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 5 HOURS ON THIG BUG BRO
+            return cpu.pc, imm# pc -4 cuz at this point, pc points to the NEXT instruction, not current. OMFG I LOST 5 HOURS ON THIG BUG BRO
         else:
             return first, second
 
     elif opcode == 0x6F:  # J-type: jal
+        cpu.pc -= 4 # to work with current pc (cur pc is incremented after FETCH phase)
         if mi.latch_alu == "jal_link":
             return cpu.pc, 4
         elif mi.latch_alu == "jal_offset":
@@ -214,11 +216,18 @@ def extract_operands_u(cpu: CPU, ir: int) -> Tuple[int, int]:
 
 
 def extract_operands_j(cpu: CPU, ir: int) -> Tuple[int, int]:
-    imm = (ir >> 12) & 0xFFFFF
-    if imm & (1 << 19):
-        imm |= -1 << 20  # sign-extend 20-bit immediate
-    offset = imm << 12
-    return cpu.pc, offset
+    imm_20    = (ir >> 31) & 0x1
+    imm_10_1  = (ir >> 21) & 0x3FF
+    imm_11    = (ir >> 20) & 0x1
+    imm_19_12 = (ir >> 12) & 0xFF
+
+    imm = (imm_20 << 20) | (imm_19_12 << 12) | (imm_11 << 11) | (imm_10_1 << 1)
+
+    # sign extend from bit 20 if negative
+    if imm & (1 << 20):
+        imm |= -1 << 21
+
+    return cpu.pc, imm
 
 class ALU:
     @staticmethod

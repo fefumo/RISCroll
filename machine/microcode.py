@@ -177,12 +177,12 @@ class MicrocodeROM:
                 self.register_decode(opcode, None, None, addr)
                 # save PC + 4
                 self.code[addr] = MicroInstruction(
-                    latch_alu="jal_link", latch_reg="rd", next_mpc=addr + 1
+                    comment="J-JAL link", latch_alu="jal_link", latch_reg="rd", next_mpc=addr + 1
                 )
 
                 # perform jump
                 self.code[addr + 1] = MicroInstruction(
-                    latch_alu="jal_offset", latch_pc="alu", next_mpc=0
+                    comment="J-JAL jump", latch_alu="jal_offset", latch_pc="alu", next_mpc=0
                 )
 
             elif t == "SYS":
