@@ -66,12 +66,15 @@ class MicrocodeROM:
             If not found: ignore everything except opcode -> (opcode, None, None)
             If nothing found: return 9999 (HALT address)
         """
-        return (
-            self.decode_table.get((opcode, funct3, funct7))
-            or self.decode_table.get((opcode, funct3, None))
-            or self.decode_table.get((opcode, None, None))
-            or 9999
-        )
+        result = self.decode_table.get((opcode, funct3, funct7)) or self.decode_table.get((opcode, funct3, None)) or self.decode_table.get((opcode, None, None))
+        if result is None:
+            raise ValueError(
+                f"Unsupported instruction: opcode=0b{opcode:07b} (0x{opcode:02X}), "
+                f"funct3={'-' if funct3 is None else f'0b{funct3:03b}'}, "
+                f"funct7={'-' if funct7 is None else f'0b{funct7:07b}'}"
+            )
+
+        return result
 
     def alloc(self, count=1):
         addr = self.mpc_counter
