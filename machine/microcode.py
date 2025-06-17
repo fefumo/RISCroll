@@ -46,9 +46,9 @@ class MicrocodeROM:
         This is a universal fetch-decode loop.
         """
         self.code[0] = MicroInstruction(
-            comment="FETCH", latch_ir=True, latch_pc="inc", next_mpc=1
+            comment="FETCH", latch_ir=True, latch_pc="inc", next_mpc=1000
         )
-        self.code[1] = MicroInstruction(comment="DECODE", next_mpc=1000)
+        #self.code[1] = MicroInstruction(comment="DECODE", next_mpc=1000) # look docs, i used to have instruction decder in scheme
         self.code[1000] = MicroInstruction(comment="DECODE DISPATCH", next_mpc=None)
 
     def register_decode(self, opcode, funct3=None, funct7=None, mpc=None):
