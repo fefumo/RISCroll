@@ -285,7 +285,7 @@ inc3 r5 # использование макроса inc3 в коде
 | :----: | :------------------------------: | :----------: | :----------: | :-------------------------: |
 | R-type | add, sub, mul, div, and, or, xor |  `0110011`   |    `0x33`    |   ALU register operations   |
 | I-type |         addi, andi, ori          |  `0010011`   |    `0x13`    |      ALU immediate ops      |
-| I-type |                lw                |  `0000011`   |    `0x03`    |      Load instructions      |
+| I-type |              lw, lb              |  `0000011`   |    `0x03`    |      Load instructions      |
 | I-type |               jalr               |  `1100111`   |    `0x67`    |        Indirect jump        |
 | S-type |                sw                |  `0100011`   |    `0x23`    |     Store instructions      |
 | B-type |        beq, bne, blt, bge        |  `1100011`   |    `0x63`    |    Conditional branches     |
@@ -334,13 +334,15 @@ inc3 r5 # использование макроса inc3 в коде
 
 Инструкции:
 
-| Instruction | funct3 | opcode  |        Description         |
-| :---------: | :----: | :-----: | :------------------------: |
-|    addi     |  000   | 0010011 |      `rd = rs1 + imm`      |
-|    andi     |  001   | 0010011 |      `rd = rs1 & imm`      |
-|     ori     |  010   | 0010011 |     `rd = rs1 \| imm`      |
-|     lw      |  000   | 0000011 |  `rd = mem[rs1 + offset]`  |
-|    jalr     |  000   | 1100111 | `PC = (rs1 + offset) & ~1` |
+| Instruction | funct3 | opcode  |                   Description                    |
+| :---------: | :----: | :-----: | :----------------------------------------------: |
+|    addi     |  000   | 0010011 |                 `rd = rs1 + imm`                 |
+|    andi     |  001   | 0010011 |                 `rd = rs1 & imm`                 |
+|     ori     |  010   | 0010011 |                `rd = rs1 \| imm`                 |
+|     lw      |  000   | 0000011 |   `rd = 32-bit word at mem[rs1 + offset]<br>`    |
+|     lb      |  001   | 0000011 | ``rd ← sign-extended byte at mem[rs1 + offset]`` |
+|    jalr     |  000   | 1100111 |            `PC = (rs1 + offset) & ~1`            |
+
 
 ---
 #### S-type инструкции

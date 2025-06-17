@@ -113,6 +113,15 @@ class MicrocodeROM:
                     self.code[addr + 1] = MicroInstruction(
                         comment="I-LW load", mem_read=True, latch_reg=3, next_mpc=0
                     )
+                elif op == "lb":
+                    addr = self.alloc(2)
+                    self.register_decode(opcode, funct3, None, addr)
+                    self.code[addr] = MicroInstruction(
+                        comment="I-LB addr", latch_alu="add", next_mpc=addr + 1
+                    )
+                    self.code[addr + 1] = MicroInstruction(
+                        comment="I-LB load byte", mem_read=True, latch_reg=3, next_mpc=0
+                    )
                 elif op == "jalr":
                     addr = self.alloc(3)
                     self.register_decode(opcode, funct3, None, addr)

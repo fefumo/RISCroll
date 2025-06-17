@@ -79,23 +79,25 @@ class ControlUnit:
                 cpu.pc = cpu.alu_out
 
         if mi.mem_read:
-            rd = (
-                cpu.ir >> 7
-            ) & 0x1F  # shift 7 to get rd (check isa), &0x1F to get rid of bits that are to the left
+            rd = (cpu.ir >> 7) & 0x1F
             addr = cpu.alu_out
-            value = int.from_bytes(
-                cpu.data_mem[addr : addr + 4], "little"
-            )  # read whole word
-            # print(f"[READ] addr=0x{addr:04X} -> t{rd} = 0x{value:08X}")
-            if addr == 0x1:
-                if cpu.input_buffer:
-                    value = cpu.input_buffer.pop(0)
-                else:
-                    value = 0  # EOF
-            else:
-                value = int.from_bytes(cpu.data_mem[addr : addr + 4], "little")
+            funct3 = (cpu.ir >> 12) & 0x7
 
-            cpu.registers[rd] = value
+            if addr == 0x1:
+                value = cpu.input_buffer.pop(0) if cpu.input_buffer else 0
+
+            else:
+                if funct3 == 0b000:  # lw
+                    value = int.from_bytes(cpu.data_mem[addr : addr + 4], "little")
+                elif funct3 == 0b001:  # lb
+                    value = cpu.data_mem[addr]
+                    if value & 0x80:  # sign-extend
+                        value |= -1 << 8
+                else:
+                    raise ValueError(f"Unsupported funct3 for mem_read: {funct3:03b}")
+
+            cpu.registers[rd] = value & 0xFFFFFFFF
+
 
         # FIXME: solve the output buffer at 0x2 hardcoded problem
         if mi.mem_write:
@@ -196,7 +198,8 @@ def extract_operands_i(cpu: CPU, ir: int) -> Tuple[int, int]:
     imm = (ir >> 20) & 0xFFF
     if imm & 0x800:
         imm |= -1 << 12  # sign-extend 12-bit immediate
-    return cpu.registers[rs1], imm
+    rs1_val = cpu.registers[rs1]
+    return rs1_val, imm
 
 
 def extract_operands_s(cpu: CPU, ir: int) -> Tuple[int, int]:
