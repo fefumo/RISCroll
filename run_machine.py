@@ -6,6 +6,28 @@ def load_binary(path):
     with open(path, "rb") as f:
         return f.read()
 
+def dump_snapshot(cpu, path="out/final_snapshot.txt"):
+    with open(path, "w") as f:
+
+        f.write("[Registers]\n")
+        for i in range(0, 32, 4):
+            line = " ".join(f"r{j:02d}={cpu.registers[j]:08X}" for j in range(i, i + 4))
+            f.write(line + "\n")
+
+        # Dump memory: 0x100..0x140
+        f.write("\n[Memory @ 0x100]\n")
+        for addr in range(0x100, 0x140, 4):
+            word = int.from_bytes(cpu.data_mem[addr:addr+4], "little")
+            f.write(f"{addr:08X}: {word:08X}\n")
+
+        # Dump output buffer
+        f.write("\n[Output buffer]\n")
+        try:
+            output = "".join(cpu.output_buffer)
+        except TypeError:
+            output = "".join(map(chr, cpu.output_buffer))
+        f.write(output + "\n")
+
 
 def run(instr_path, data_path, input_file=None):
     full_instr_mem = load_binary(instr_path)
@@ -42,6 +64,8 @@ def run(instr_path, data_path, input_file=None):
 
     print("Output buffer:")
     print("".join(cpu.output_buffer))
+    
+    dump_snapshot(cpu)
 
 
 if __name__ == "__main__":
