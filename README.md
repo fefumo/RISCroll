@@ -356,9 +356,11 @@ inc3 r5 # использование макроса inc3 в коде
 
 Инструкции:
 
-| Instruction | funct3 | opcode  |      Description       |
-| :---------: | :----: | :-----: | :--------------------: |
-|     sw      |  000   | 0100011 | `mem[rs1 + imm] = rs2` |
+
+| Instruction | funct3 | opcode  |         Description          |
+| :---------: | :----: | :-----: | :--------------------------: |
+|     sw      |  000   | 0100011 |    `mem[rs1 + imm] = rs2`    |
+|     sb      |  001   | 0100011 | `byte at mem[rs1+imm] = rs2` |
 
 ---
 #### B-type инструкции

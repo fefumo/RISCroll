@@ -19,7 +19,7 @@ main:
 
 loop:
     lw t3, 0(t1) # read symbol from buf
-    sw t3, 0(t0) # output
+    sb t3, 0(t0) # output
     addi t2, t2, -1 # n--
     addi t1, t1, 1 # buf++
     bne t2, r0, loop # while t2 != 0

@@ -19,6 +19,6 @@ out_addr:  .word 0x2      # output address
     lw t4, 0(t3)          # t4 = *out_addr (== 0x2)
 
     # Write character to output (to address stored in t4)
-    sw t2, 0(t4)
+    sb t2, 0(t4)
 
     halt

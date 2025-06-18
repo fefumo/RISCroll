@@ -39,23 +39,23 @@ read_input:
 read_loop:
     lb t1, 0(a1)         # read char
     beq t1, r0, input_done
-    sw t1, 0(t0)
+    sb t1, 0(t0)
     addi t0, t0, 1
     jal r0, read_loop
 
 input_done:
     addi t1, r0, 33      # '!'
-    sw t1, 0(t0)
+    sb t1, 0(t0)
     addi t0, t0, 1
     addi t1, r0, 0       # null terminator
-    sw t1, 0(t0)
+    sb t1, 0(t0)
 
     addi a0, a3, 0       # a0 = &question
     addi t6, a2, 0       # t6 = out ptr
     jal ra, print_cstr
 
     addi t1, r0, 10      # '\n'
-    sw t1, 0(a2)
+    sb t1, 0(a2)
 
     addi a0, gp, 0       # a0 = &buf ("Hello, <name>!\0")
     jal ra, print_cstr
@@ -68,7 +68,7 @@ print_cstr:
 print_loop:
     lb t1, 0(t0)
     beq t1, r0, print_ret
-    sw t1, 0(t6)
+    sb t1, 0(t6)
     addi t0, t0, 1
     jal r0, print_loop
 

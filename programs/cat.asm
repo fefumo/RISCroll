@@ -20,7 +20,7 @@ loop:
     lw t3, 0(t1)          # t3 = *0x1 (next char)
 
     # Write character to output (t2 points to output address)
-    sw t3, 0(t2)
+    sb t3, 0(t2)
 
     bne t3, r0, loop     # if t3 == 0, break the loop
 

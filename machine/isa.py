@@ -17,6 +17,7 @@ INSTRUCTION_SET = {
     "lb": {"type": "I", "opcode": 0x3, "funct3": 0b001},
     "jalr": {"type": "I", "opcode": 0x67, "funct3": 0b000},
     "sw": {"type": "S", "opcode": 0x23, "funct3": 0b000},
+    "sb": {"type": "S", "opcode": 0x23, "funct3": 0b001},
     "beq": {"type": "B", "opcode": 0x63, "funct3": 0b000},
     "bne": {"type": "B", "opcode": 0x63, "funct3": 0b001},
     "bgt": {"type": "B", "opcode": 0x63, "funct3": 0b010},

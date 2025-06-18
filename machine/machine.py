@@ -102,12 +102,22 @@ class ControlUnit:
         # FIXME: solve the output buffer at 0x2 hardcoded problem
         if mi.mem_write:
             addr = cpu.alu_out
-            # FIXME: it's sb, not sw at this point.
-            val = cpu.registers[(cpu.ir >> 20) & 0x1F] & 0xFF  # rs2
-            if addr == 0x2:
-                cpu.output_buffer.append(chr(val))  # Output character
+            val = cpu.registers[(cpu.ir >> 20) & 0x1F] # rs2
+            
+            # TODO: clean-up code. too much branching. works for now tho
+            #sb
+            if mi.store_byte:
+                val &=0xFF
+                if addr == 0x2:
+                    cpu.output_buffer.append(chr(val))  # Output character
+                else:
+                    cpu.data_mem[addr] = val
+            #sw
             else:
-                cpu.data_mem[addr] = val
+                if addr == 0x2:
+                    cpu.output_buffer.append(int(val))
+                else:
+                    cpu.data_mem[addr : addr + 4] = val.to_bytes(4, "little") 
 
         # Register write back
         if mi.latch_reg == "rd":

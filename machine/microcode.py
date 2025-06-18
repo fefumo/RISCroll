@@ -18,6 +18,7 @@ class MicroInstruction:
     next_mpc: Optional[int] = None  # address of next microprogram
     jump_if: Optional[str] = None  # condition (ZERO, NEG, ...)
     halt: bool = False
+    store_byte: bool = False  # for differentiating between sb/sw
 
 
 class MicrocodeROM:
@@ -48,7 +49,7 @@ class MicrocodeROM:
         self.code[0] = MicroInstruction(
             comment="FETCH", latch_ir=True, latch_pc="inc", next_mpc=1000
         )
-        #self.code[1] = MicroInstruction(comment="DECODE", next_mpc=1000) # look docs, i used to have instruction decder in scheme
+        # self.code[1] = MicroInstruction(comment="DECODE", next_mpc=1000) # look docs, i used to have instruction decder in scheme
         self.code[1000] = MicroInstruction(comment="DECODE DISPATCH", next_mpc=None)
 
     def register_decode(self, opcode, funct3=None, funct7=None, mpc=None):
@@ -153,11 +154,19 @@ class MicrocodeROM:
                 addr = self.alloc(2)
                 self.register_decode(opcode, funct3, None, addr)
                 self.code[addr] = MicroInstruction(
-                    comment="S-SW addr", latch_alu="add", next_mpc=addr + 1
+                    comment="S-{op} addr", latch_alu="add", next_mpc=addr + 1
                 )
-                self.code[addr + 1] = MicroInstruction(
-                    comment="S-SW store", mem_write=True, next_mpc=0
-                )
+                if op == "sb":
+                    self.code[addr + 1] = MicroInstruction(
+                        comment="S-{op} store",
+                        mem_write=True,
+                        store_byte=True,
+                        next_mpc=0,
+                    )
+                elif op == "sw":
+                    self.code[addr + 1] = MicroInstruction(
+                        comment="S-{op} store", mem_write=True, next_mpc=0
+                    )
 
             elif t == "B":
                 addr = self.alloc(3)
