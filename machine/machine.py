@@ -24,16 +24,37 @@ class CPU:
         self.microcode_rom = MicrocodeROM()
         self.tracer = Tracer(self)
 
-    def load_input_file(self, filename):
+    def load_input_file(self, filename, as_words=False):
+        """
+        Loads input data into the input buffer.
+
+        If as_words is False, reads the file as raw bytes (byte-by-byte).
+        If as_words is True, treats the file as a text file with one integer per line,
+        and parses each line into a 32-bit signed integer.
+        """
+
         with open(filename, "rb") as f:
             data = f.read()
 
-        # null terminate
-        if not data.endswith(b"\x00"):
-            data += b"\x00"
+        if as_words:
+            with open(filename, "r") as f:
+                lines = f.readlines()
 
-        self.input_buffer = list(data)
+            try:
+                self.input_buffer = [
+                    int(line.strip()) for line in lines if line.strip() != ""
+                ]
+            except ValueError as e:
+                raise ValueError(f"Invalid number in input file: {e}")
 
+        else:
+            with open(filename, "rb") as f:
+                data = f.read()
+            if not data.endswith(b"\x00"):
+                data += b"\x00"
+            self.input_buffer = list(data)
+
+    # TODO: `step` and `tick` should be renamed or be the same for easier understanding
     def step(self):
         microinstr = self.microcode_rom[self.mpc]
         self.tracer.tick(microinstr)
@@ -98,26 +119,25 @@ class ControlUnit:
 
             cpu.registers[rd] = value & 0xFFFFFFFF
 
-
         # FIXME: solve the output buffer at 0x2 hardcoded problem
         if mi.mem_write:
             addr = cpu.alu_out
-            val = cpu.registers[(cpu.ir >> 20) & 0x1F] # rs2
-            
+            val = cpu.registers[(cpu.ir >> 20) & 0x1F]  # rs2
+
             # TODO: clean-up code. too much branching. works for now tho
-            #sb
+            # sb
             if mi.store_byte:
-                val &=0xFF
+                val &= 0xFF
                 if addr == 0x2:
                     cpu.output_buffer.append(chr(val))  # Output character
                 else:
                     cpu.data_mem[addr] = val
-            #sw
+            # sw
             else:
                 if addr == 0x2:
                     cpu.output_buffer.append(int(val))
                 else:
-                    cpu.data_mem[addr : addr + 4] = val.to_bytes(4, "little") 
+                    cpu.data_mem[addr : addr + 4] = val.to_bytes(4, "little")
 
         # Register write back
         if mi.latch_reg == "rd":
@@ -169,7 +189,7 @@ def extract_operands(cpu: CPU, mi: MicroInstruction):
 
     elif opcode == 0x63:  # B-type: beq, etc.
         first, second, imm = extract_operands_b(cpu, ir)
-        #cpu.pc -= 4  # to work with current pc
+        # cpu.pc -= 4  # to work with current pc
         if mi.latch_alu == "branch_offset":
             return (
                 cpu.pc - 4,
@@ -179,7 +199,7 @@ def extract_operands(cpu: CPU, mi: MicroInstruction):
             return first, second
 
     elif opcode == 0x6F:  # J-type: jal
-        #cpu.pc -= 4  # to work with current pc (cur pc is incremented after FETCH phase)
+        # cpu.pc -= 4  # to work with current pc (cur pc is incremented after FETCH phase)
         if mi.latch_alu == "jal_link":
             return cpu.pc - 4, 4
         elif mi.latch_alu == "jal_offset":
