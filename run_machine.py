@@ -16,17 +16,18 @@ def dump_snapshot(cpu, path="out/final_snapshot.txt"):
             f.write(line + "\n")
 
         # Dump memory: 0x100..0x140
-        f.write("\n[Memory @ 0x100]\n")
-        for addr in range(0x100, 0x140, 4):
+        f.write("\n[Memory @ 0x300]\n")
+        for addr in range(0x300, 0x340, 4):
             word = int.from_bytes(cpu.data_mem[addr : addr + 4], "little")
             f.write(f"{addr:08X}: {word:08X}\n")
 
         # Dump output buffer
         f.write("\n[Output buffer]\n")
-        try:
+        if all(isinstance(x, int) for x in cpu.output_buffer):
+            output = "\n".join(str(x) for x in cpu.output_buffer)
+        else:
             output = "".join(cpu.output_buffer)
-        except TypeError:
-            output = "".join(map(chr, cpu.output_buffer))
+        
         f.write(output + "\n")
 
 
@@ -56,7 +57,8 @@ def run(instr_path, data_path, input_file=None, input_mode="bytes"):
     while cpu.running:
         cpu.step()
         step_count += 1
-        if step_count > 10_000:
+        # sort for 30 nums requires more than 10_000 steps MonkaS
+        if step_count > 100_000:
             print("Execution stopped: too many steps")
             break
 
