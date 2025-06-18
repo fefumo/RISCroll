@@ -64,7 +64,10 @@ def run(instr_path, data_path, input_file=None, input_mode="bytes"):
     cpu.tracer.finish()
 
     print("Output buffer:")
-    print("".join(cpu.output_buffer))
+    if all(isinstance(x, int) for x in cpu.output_buffer):
+        print("\n".join(str(x) for x in cpu.output_buffer))
+    else:
+        print("".join(cpu.output_buffer))
 
     dump_snapshot(cpu)
 
