@@ -335,7 +335,7 @@ def write_binaries(text_code, data_code, text_debug, data_debug, target_path):
 def main(source_path, target_path):
     """create .bin file and debugging info"""
 
-    target_path = "out/" + target_path
+    target_path = target_path
 
     with open(source_path, encoding="utf-8") as f:
         source = f.read()
