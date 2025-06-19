@@ -63,7 +63,7 @@ def run(instr_path, data_path, input_file=None, input_mode="bytes"):
             break
 
     print("==== MACHINE HALTED ====")
-    cpu.tracer.finish()
+    cpu.logger.finish()
 
     print("Output buffer:")
     if all(isinstance(x, int) for x in cpu.output_buffer):

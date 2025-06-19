@@ -1,6 +1,6 @@
 from typing import Tuple
 from machine.microcode import MicroInstruction, MicrocodeROM
-from tracer import Tracer
+from machine.logger import Logger
 
 
 class CPU:
@@ -22,7 +22,7 @@ class CPU:
 
         self.cu = ControlUnit()
         self.microcode_rom = MicrocodeROM()
-        self.tracer = Tracer(self)
+        self.logger = Logger(self)
 
     def load_input_file(self, filename, as_words=False):
         """
@@ -57,7 +57,7 @@ class CPU:
     # TODO: `step` and `tick` should be renamed or be the same for easier understanding
     def step(self):
         microinstr = self.microcode_rom[self.mpc]
-        self.tracer.tick(microinstr)
+        self.logger.log()
         self.cu.execute(self, microinstr)
 
 
