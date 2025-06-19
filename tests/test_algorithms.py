@@ -31,6 +31,11 @@ TEST_CASES = [
         "input_file": "algorithms/cat_input.txt",
         "input_mode": None,
     },
+    {
+        "name": "macro_showcase",
+        "input_file": None,
+        "input_mode": None
+    },
 ]
 
 def _read(path):
@@ -47,7 +52,7 @@ def test_algorithm(case):
     input_file = case.get("input_file")
     input_mode = case.get("input_mode")
 
-    # === Очистка out/ и log_output/ ===
+    # === Clearing out/ and log_output/ ===
     if os.path.exists(OUT_DIR):
         shutil.rmtree(OUT_DIR)
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -56,19 +61,19 @@ def test_algorithm(case):
         shutil.rmtree("log_output")
     os.makedirs("log_output", exist_ok=True)
 
-    # === Очистка и подготовка test_outputs/<name>/ ===
+    # === Cleanup and preparation of test_outputs/<name>/ ===
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir)
 
-    # === 1. Трансляция .asm → .bin ===
+    # === 1. Translation .asm -> .bin ===
     target_prefix = os.path.join(OUT_DIR, "out")  # out/out.text.bin
     subprocess.run(
         ["python", "machine/translator.py", asm_path, target_prefix],
         check=True
     )
 
-    # === 2. Запуск машины ===
+    # === 2. Starting the machine ===
     cmd = ["python", "run_machine.py", f"{target_prefix}.text.bin", f"{target_prefix}.data.bin"]
     if input_file:
         cmd.append(input_file)
@@ -77,7 +82,7 @@ def test_algorithm(case):
 
     subprocess.run(cmd, check=True)
 
-    # === 3. Копирование всех артефактов в test_outputs/<name>/ ===
+    # === 3. Copy all artifacts to test_outputs/<name>/ ===
     artifacts = [
         ("log_output/trace.log", "trace.log"),
         (os.path.join(OUT_DIR, "final_snapshot.txt"), "final_snapshot.txt"),
@@ -89,7 +94,7 @@ def test_algorithm(case):
         if os.path.exists(src):
             shutil.copy(src, os.path.join(output_dir, dst_name))
 
-    # === 4. Сравнение с эталонными файлами ===
+    # === 4. Comparison with reference files ===
     for src, dst_name in artifacts:
         actual = os.path.join(output_dir, dst_name)
         expected = os.path.join(expected_path, dst_name)

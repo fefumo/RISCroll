@@ -109,7 +109,7 @@
 <macro_arg_list> ::= <value> { "," <value> }
 
 ```
-##### Поддержка label-ов, секций и директивы .org.
+##### Поддержка label-ов, секций и директивы .org. Демонастрация макросов.
 Описанный синтаксис позволяет писать код как на полноценном асме.
 
 Пример использования лейблов, секций и директивы .org:
@@ -124,8 +124,16 @@ main:
     halt
 ```
 
+Пример использования макроса:
+```
+.macro load_addr reg, label
+    lui \reg, high(\label)
+    addi \reg, \reg, low(\label)
+    lw \reg, 0(\reg)
+.endmacro
+```
 
-inc3 r5 # использование макроса inc3 в коде
+Использован в: [macro_showcase.asm](algorithms/macro_showcase.asm)
 
 ```
 ### Регистры

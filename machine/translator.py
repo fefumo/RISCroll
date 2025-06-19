@@ -1,5 +1,6 @@
 import codecs
 from enum import auto
+import re
 import struct
 from typing import Dict, List, Tuple
 from isa import INSTRUCTION_SET, ALIAS_REGISTERS
@@ -52,6 +53,58 @@ def to_hex(code: List[int], debug_info: List[Tuple[int, str, int]]) -> str:
         result.append(f"{addr:08X}(int {addr}) - {hex_word} - {bin_word} - {mnemonic}")
     return "\n".join(result)
 
+import re
+
+def expand_macros(lines: List[str]) -> List[str]:
+    """
+    Parses and expands macros defined in the source code using regex substitution.
+    Cleans up comma artifacts in argument names and values.
+    """
+    macros = {}
+    expanded = []
+    in_macro = False
+    macro_name = ""
+    macro_args = []
+    macro_body = []
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(".macro"):
+            parts = stripped.split()
+            macro_name = parts[1]
+            macro_args = [a.strip(",") for a in parts[2:]]  # 🔧 очищаем reg,
+            in_macro = True
+            macro_body = []
+        elif stripped == ".endmacro":
+            macros[macro_name] = (macro_args, macro_body)
+            in_macro = False
+        elif in_macro:
+            macro_body.append(line)
+        else:
+            tokens = stripped.split()
+            if tokens and tokens[0] in macros:
+                macro_name = tokens[0]
+                actual_args = [a.strip(",") for a in tokens[1:]]  # 🔧 очищаем t0,
+                formal_args, body = macros[macro_name]
+
+                if len(actual_args) != len(formal_args):
+                    raise ValueError(f"Macro `{macro_name}` expects {len(formal_args)} args, got {len(actual_args)}")
+
+                arg_map = dict(zip(formal_args, actual_args))
+
+                for body_line in body:
+                    def replacer(match):
+                        key = match.group(1)
+                        if key not in arg_map:
+                            raise ValueError(f"Unknown macro argument `\\{key}` in: {body_line}")
+                        return arg_map[key]
+
+                    replaced = re.sub(r'\\(\w+)', replacer, body_line)
+                    expanded.append(replaced)
+            else:
+                expanded.append(line)
+
+    return expanded
 
 def first_pass(
     lines: List[str],
@@ -340,7 +393,7 @@ def main(source_path, target_path):
     with open(source_path, encoding="utf-8") as f:
         source = f.read()
 
-    lines = source.splitlines()
+    lines = expand_macros(source.splitlines())
     label_map, data_segment, text_segment = first_pass(lines)
     text_segment_start_address = text_segment[0][0]
     data_code, data_debug = second_pass(data_segment, label_map)
