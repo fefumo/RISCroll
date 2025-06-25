@@ -20,7 +20,7 @@ jobs:
           pip install ruff mypy
 
       - name: Run Ruff linter
-        run: ruff .
+        run: ruff check .
 
       - name: Run MyPy type checker
         run: mypy .
