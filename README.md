@@ -11,13 +11,14 @@
                                 \___________________________\/
                                  \ \ \ \ \ \ \ \ \ \ \ \ \ \ \
 ```
-Лабораторная работа №4. Эксперимент
+RUSSIAN README: [README_RU.md](README_RU.md)
 
-Молчанов Фёдор Денисович, P3213
-`asm | risc | harv | mc | tick | binary | stream | mem | pstr | prob2 | vector`
+Laboratory Work No. 4. Experiment
 
-## Язык программирования
-### Синтаксис
+Molchanov Fyodor Denisovich, P3213
+
+## Programming Language
+### Syntax
 
 ```ebnf
 <program>         ::= {<line> | <macro_def>}
@@ -109,10 +110,10 @@
 <macro_arg_list> ::= <value> { "," <value> }
 
 ```
-##### Поддержка label-ов, секций и директивы .org. Демонастрация макросов.
-Описанный синтаксис позволяет писать код как на полноценном асме.
+##### Support for labels, sections, and the .org directive. Demonstration of macros.
+The described syntax allows writing code as in full-fledged assembly.
 
-Пример использования лейблов, секций и директивы .org:
+Example of using labels, sections, and the .org directive:
 ```
 .data
 .org 0x0200
@@ -124,7 +125,7 @@ main:
     halt
 ```
 
-Пример использования макроса:
+Example of using a macro:
 ```
 .macro load_addr reg, label
     lui \reg, high(\label)
@@ -133,9 +134,9 @@ main:
 .endmacro
 ```
 
-Использован в: [macro_showcase.asm](algorithms/macro_showcase.asm)
+Used in: [macro_showcase.asm](algorithms/macro_showcase.asm)
 
-### Регистры
+### Registers
 | Register | Alias  | Description                       |
 |----------|--------|-----------------------------------|
 | `r0`    | `zero` | Constant zero                     |
@@ -171,84 +172,84 @@ main:
 | `r30`   | `x30`  | Reserved / custom use             |
 | `r31`   | `x31`  | Reserved / custom use             |
 
-### Стратегия вычислений
-- Ассемблер соответствует строгой модели вычислений. Все аргументы вычисляются до применения к ним функций
-- Язык не поддерживает выражения включающие в себя несколько ариф./логич. операций. Порядок выполнения операций определяет программист
-- Все аргументы инструкций -- либо регистры, либо простые немодифицируемые значения (литералы), вычисляемые на этапе трансляции
-- Все псевдо-функции (high(label), low(label)) раскрываются во время трансляции. Во время исполнения остаются только примитивные инструкции.
+### Computation Strategy
+- The assembler follows a strict computation model. All arguments are evaluated before applying functions to them.
+- The language does not support expressions involving multiple arithmetic/logical operations. The order of operations is determined by the programmer.
+- All instruction arguments are either registers or simple immutable values (literals) evaluated during translation.
+- All pseudo-functions (high(label), low(label)) are expanded during translation. Only primitive instructions remain during execution.
 
-### Области видимости
-В языке не существует как таковых областей видимости, однако есть пара моментов:
-- Секция данных и команд не имеют прямого доступа друг к другу
-- На аппаратном уровне невозможно прочитать команду из памяти команд как данные и наоборот
-- Метки (label:) имеют глобальную область видимости, независимо от секции, в которой объявлены
-- Имя не может быть повторно использовано для разных объектов (одна и та же строка не может быть и меткой, и макросом, и переменной)
-- Разрешение символов производится до выполнения, на этапе трансляции (не динамически)
+### Scoping
+The language does not have explicit scoping, but there are a few points:
+- The data and code sections do not have direct access to each other.
+- At the hardware level, it is impossible to read an instruction from instruction memory as data and vice versa.
+- Labels (label:) have global scope, regardless of the section they are declared in.
+- A name cannot be reused for different objects (the same string cannot be both a label, a macro, and a variable).
+- Symbol resolution is performed before execution, during translation (not dynamically).
 
-### Типизация, виды литералов
-- .word — 32-битные значения
-- .byte — 8-битные
-- 0x литералы
-- псевдо-функции high(), low()
+### Typing, Types of Literals
+- .word — 32-bit values
+- .byte — 8-bit
+- 0x literals
+- Pseudo-functions high(), low()
 
-## Организация памяти
-- Процессор использует память с байтовой адресацией.
-- Инструкции загрузки/сохранения (lw, sw) работают с 4-байтовыми словами.
-- Непосредственные смещения в инструкциях памяти представляют собой 12-битные значения со знаком, что позволяет получить доступ к +-2048 байтам вокруг базового регистра.
-- Модель памяти соответствует Гарвардской архитектуре
-- Присутствует 3 вида памяти: Память инструкций, Память данных, Память микрокоманд
+## Memory Organization
+- The processor uses byte-addressable memory.
+- Load/store instructions (lw, sw) work with 4-byte words.
+- Immediate offsets in memory instructions are 12-bit signed values, allowing access to +-2048 bytes around the base register.
+- The memory model follows Harvard architecture.
+- There are three types of memory: Instruction Memory, Data Memory, Microinstruction Memory.
 
-### Структура микрокода
+### Microcode Structure
 
-Каждая микроинструкция (`MicroInstruction`) задаёт один такт выполнения инструкции. Ниже приведены поля и их описание:
+Each microinstruction (`MicroInstruction`) defines one clock cycle of instruction execution. Below are the fields and their descriptions:
 
-|    Поле     |       Тип       |       Возможные значения       |                         Назначение                          |
+|    Field     |       Type       |       Possible Values       |                         Purpose                          |
 | :---------: | :-------------: | :----------------------------: | :---------------------------------------------------------: |
-| `latch_pc`  | `Optional[str]` |  `"inc"`, `"alu"`, `"branch"`  | Управление PC: инкремент, загрузка из ALU, условный переход |
-| `latch_ir`  |     `bool`      |        `True` / `False`        |        Загрузить инструкцию из памяти по `PC` в `IR`        |
-| `latch_reg` | `Optional[int]` |            `0..31`             |        Номер регистра, в который производится запись        |
-| `latch_alu` | `Optional[str]` | `"add"`, `"sub"`, ..., `"lui"` |         ALU-операция, которая должна быть выполнена         |
-| `latch_ar`  | `Optional[str]` |               —                |              Зарезервировано (не используется)              |
-| `mem_read`  |     `bool`      |        `True` / `False`        |      Считать данные из `data_mem` по адресу `ALU_OUT`       |
-| `mem_write` |     `bool`      |        `True` / `False`        |      Записать данные в `data_mem` по адресу `ALU_OUT`       |
-| `set_flags` |     `bool`      |        `True` / `False`        |     Установить флаги `Z`, `N` на основе результата ALU      |
-| `next_mpc`  | `Optional[int]` |       адрес микрокоманды       |        Адрес следующей микрокоманды в микропрограмме        |
-|  `jump_if`  | `Optional[str]` | `"Z"`, `"NZ"`, `"GT"`, `"LE"`  |         Условие перехода (для `latch_pc="branch"`)          |
-|   `halt`    |     `bool`      |        `True` / `False`        |                Остановить выполнение машины                 |
+| `latch_pc`  | `Optional[str]` |  `"inc"`, `"alu"`, `"branch"`  | PC control: increment, load from ALU, conditional branch |
+| `latch_ir`  |     `bool`      |        `True` / `False`        |        Load instruction from memory at `PC` into `IR`        |
+| `latch_reg` | `Optional[int]` |            `0..31`             |        Register number to write to        |
+| `latch_alu` | `Optional[str]` | `"add"`, `"sub"`, ..., `"lui"` |         ALU operation to perform         |
+| `latch_ar`  | `Optional[str]` |               —                |              Reserved (unused)              |
+| `mem_read`  |     `bool`      |        `True` / `False`        |      Read data from `data_mem` at address `ALU_OUT`       |
+| `mem_write` |     `bool`      |        `True` / `False`        |      Write data to `data_mem` at address `ALU_OUT`       |
+| `set_flags` |     `bool`      |        `True` / `False`        |     Set flags `Z`, `N` based on ALU result     |
+| `next_mpc`  | `Optional[int]` |       microinstruction address       |        Next microinstruction address in microprogram        |
+|  `jump_if`  | `Optional[str]` | `"Z"`, `"NZ"`, `"GT"`, `"LE"`  |         Branch condition (for `latch_pc="branch"`)          |
+|   `halt`    |     `bool`      |        `True` / `False`        |                Stop machine execution                |
               |
 
-#### Начальные микрокоманды
+#### Initial Microinstructions
 
-| MPC  | Комментарий       |                         Описание                          |
+| MPC  | Comment       |                         Description                          |
 | ---- | ----------------- | :-------------------------------------------------------: |
-| 0    | `FETCH`           |     Загрузка команды из `instr_mem` в `IR`, `PC += 4`     |
-| 1    | `DECODE`          |            Переход к общей точке декодирования            |
-| 1000 | `DECODE DISPATCH` | Поиск нужной микропрограммы по `(opcode, funct3, funct7)` |
+| 0    | `FETCH`           |     Load instruction from `instr_mem` into `IR`, `PC += 4`     |
+| 1    | `DECODE`          |            Jump to common decoding point            |
+| 1000 | `DECODE DISPATCH` | Find the required microprogram by `(opcode, funct3, funct7)` |
 
 
-### Извлечение инструкций
-- Счетчик программ (PC) указывает на текстовую память.
-- Инструкции имеют длину 4 байта (32 бита) и должны быть выровнены по словам.
-- Процессор увеличивает PC на += 4 после каждой инструкции, если только не происходит переход.
+### Instruction Fetch
+- The program counter (PC) points to text memory.
+- Instructions are 4 bytes (32 bits) long and must be word-aligned.
+- The processor increments PC by += 4 after each instruction unless a branch occurs.
 
-### Доступ к данным
-- Обращение к памяти разрешено только через регистры: все инструкции загрузки и сохранения (lw, sw) требуют адрес в регистре.
-- Инструкция lw (load word) загружает 4 байта из памяти по адресу, содержащемуся в регистре.
-- Инструкция sw (store word) записывает 4 байта по аналогичному адресу.
-- Нельзя передавать непосредственные значения в lw/sw — только через lui/addi или адресные регистры.
-- I\O адреса на данный момент строгие: input -- 0x1, output -- 0x2. В будущем у программиста будет возможность самому выбирать эти адреса
+### Data Access
+- Memory access is only allowed through registers: all load and store instructions (lw, sw) require an address in a register.
+- The lw (load word) instruction loads 4 bytes from memory at the address contained in the register.
+- The sw (store word) instruction writes 4 bytes to a similar address.
+- Immediate values cannot be passed to lw/sw — only through lui/addi or address registers.
+- I\O addresses are currently strict: input -- 0x1, output -- 0x2. In the future, the programmer will be able to choose these addresses.
 
 ```
        Instruction memory
         +-----------------------------+
-        |      Instruction Memory     |  <-- Только чтение (READ-ONLY)
+        |      Instruction Memory     |  <-- Read-only (READ-ONLY)
         | 0x0000: bin instr           |
         | 0x0004: bin instr           |
         |  ...                        |
         +-----------------------------+
 
         +-----------------------------+
-        |         Data Memory         |  <-- Чтение / Запись
+        |         Data Memory         |  <-- Read / Write
         | 0x1000: user data           |
         | 0x1004: user data           |
         |  ...                        |
@@ -256,12 +257,12 @@ main:
 
         +-----------------------------+
         |      Memory-mapped I/O      |
-        | 0x1: IN_BUF                 |  <-- Только чтение
-        | 0x2: OUT_BUF                |  <-- Только запись
+        | 0x1: IN_BUF                 |  <-- Read-only
+        | 0x2: OUT_BUF                |  <-- Write-only
         +-----------------------------+
 
         +-----------------------------+
-        |     Microprogram Memory     |  <-- Только CU, сигналы управления
+        |     Microprogram Memory     |  <-- CU-only, control signals
         | 0x0000: signals             |
         | 0x0001: signals             |
         |  ...                        |
@@ -269,14 +270,14 @@ main:
 
 ```
 
-## Система команд
-#### Основные характерстики (features):
- - Длина инструкции строгая, 32 бит
- - Значения `opcode` и форматы инструкций взяты из оффициальной документации RISC-V
- - `jal` реализован прямо как в RISC-V, в том числе с учётом r0 как неиспользуемого регистра для записи. В таком случае `jal` будет использоваться как `goto <label>` без записи в регистр возврата. Диапазон значений, так как `imm value` 20 бит будет `[-2^31; 2^31 - 2^12] = [−2147483648, 2147479552]`
- - На каждую команду уходит минимум 2 такта на fetch и decode, дальше, в завис-ти от типа микропрограммы выполняется от 1 до ~3 микроинструкций.
+## Instruction Set
+#### Main features:
+ - Strict instruction length, 32 bits
+ - `opcode` values and instruction formats are taken from the official RISC-V documentation
+ - `jal` is implemented exactly as in RISC-V, including accounting for r0 as an unused register for writing. In this case, `jal` will be used as `goto <label>` without writing to the return register. The range of values, since `imm value` is 20 bits, will be `[-2^31; 2^31 - 2^12] = [−2147483648, 2147479552]`
+ - Each command takes at least 2 clock cycles for fetch and decode, then, depending on the type of microprogram, from 1 to ~3 microinstructions are executed.
 
-#### Аббревиатуры:
+#### Abbreviations:
 - rs - source register
 - rd - destination register
 - opcode - operation code
@@ -297,21 +298,21 @@ main:
 | J-type |               jal                |  `1101111`   |    `0x6F`    |  Unconditional jump + link  |
 |  SYS   |               halt               |  `1111111`   |    `0x7F`    |     Custom system/halt      |
 
-* `opcode` — всегда в `[6..0]`
-* `funct3` — всегда в `[14..12]`
-* `funct7` (если есть) — всегда в `[31..25]`
+* `opcode` — always in `[6..0]`
+* `funct3` — always in `[14..12]`
+* `funct7` (if present) — always in `[31..25]`
 
 ---
-#### R-type инструкции
+#### R-type Instructions
 
-Формат:
+Format:
 
 |  funct7  |   rs2    |   rs1    |  funct3  |   rd    | opcode |
 | :------: | :------: | :------: | :------: | :-----: | :----: |
 | [31..25] | [24..20] | [19..15] | [14..12] | [11..7] | [6..0] |
 
 
-Инструкции:
+Instructions:
 
 | Instruction | funct7  | funct3 | opcode (0x33) |    Description    |
 | :---------: | :-----: | :----: | :-----------: | :---------------: |
@@ -327,15 +328,15 @@ main:
 
 ---
 
-#### I-type инструкции
+#### I-type Instructions
 
-Формат:
+Format:
 
 | imm[11:0] |   rs1    |  funct3  |   rd    | opcode |
 | :-------: | :------: | :------: | :-----: | :----: |
 | [31..20]  | [19..15] | [14..12] | [11..7] | [6..0] |
 
-Инструкции:
+Instructions:
 
 | Instruction | funct3 | opcode  |                   Description                    |
 | :---------: | :----: | :-----: | :----------------------------------------------: |
@@ -348,15 +349,15 @@ main:
 
 
 ---
-#### S-type инструкции
+#### S-type Instructions
 
-Формат:
+Format:
 
 | imm[11:5] |   rs2    |   rs1    |  funct3  | imm[4:0] | opcode |
 | :-------: | :------: | :------: | :------: | :------: | :----: |
 | [31..25]  | [24..20] | [19..15] | [14..12] | [11..7]  | [6..0] |
 
-Инструкции:
+Instructions:
 
 
 | Instruction | funct3 | opcode  |         Description          |
@@ -365,19 +366,18 @@ main:
 |     sb      |  001   | 0100011 | `byte at mem[rs1+imm] = rs2` |
 
 ---
-#### B-type инструкции
+#### B-type Instructions
 
-Формат:
+Format:
 
 | imm[12] | imm[10:5] |   rs2    |   rs1    |  funct3  | imm[4:1] | imm[11] | opcode |
 | :-----: | :-------: | :------: | :------: | :------: | :------: | :-----: | :----: |
 |  [31]   | [30..25]  | [24..20] | [19..15] | [14..12] | [11..8]  |   [7]   | [6..0] |
 
 
-> После сборки все части immediate склеиваются обратно в 12-битный смещённый offset
+> After assembly, all immediate parts are concatenated back into a 12-bit offset.
 
-
-Инструкции:
+Instructions:
 
 | Instruction | funct3 | opcode  |          Description          |
 | :---------: | :----: | :-----: | :---------------------------: |
@@ -387,15 +387,15 @@ main:
 |     ble     |  011   | 1100011 | `if rs1 <= rs2, PC += offset` |
 
 ---
-#### U-type инструкции
+#### U-type Instructions
 
-Формат:
+Format:
 
 | imm[31:12] |   rd    | opcode |
 | :--------: | :-----: | :----: |
 |  [31..12]  | [11..7] | [6..0] |
 
-Инструкции:
+Instructions:
 
 | Instruction | opcode  |   Description    |
 | :---------: | :-----: | :--------------: |
@@ -403,16 +403,16 @@ main:
 
 ---
 
-#### J-type инструкции
+#### J-type Instructions
 
-Формат:
+Format:
 
 | imm[20] | imm[10:1] | imm[11] | imm[19:12] |   rd    | opcode |
 | :-----: | :-------: | :-----: | :--------: | :-----: | :----: |
 |  [31]   | [30..21]  |  [20]   |  [19..12]  | [11..7] | [6..0] |
-> После склейки: `offset = {imm[20], imm[10:1], imm[11], imm[19:12]} << 1`
+> After concatenation: `offset = {imm[20], imm[10:1], imm[11], imm[19:12]} << 1`
 
-Инструкции:
+Instructions:
 
 | Instruction | opcode  |          Description          |
 | :---------: | :-----: | :---------------------------: |
@@ -421,75 +421,75 @@ main:
 ---
 #### sys-type
 
-Формат
+Format
 
 | instruction | operands | opcode (bin) | opcode (hex) |    description     |
 | :---------: | :------: | :----------: | :----------: | :----------------: |
 |   `halt`    |    –     |  `1111111`   |    `0x7F`    | Custom system/halt |
 
-## Транслятор
+## Translator
 
-Трансляция происходит в несколько этапов:
+Translation occurs in several stages:
 
-1. **Первый проход (`first_pass`)**  
-   - Пропуск комментариев (`#`).
-   - Код разделяется на секции `.text` и `.data`, каждая со своей областью адресации (так как Гарвардская архитектура).
-   - Обработка директив `.org`.
-   - Выделяются и сохраняются метки (labels) вместе с их адресами.
-   - Формируются два сегмента: `data_segment` и `text_segment`, содержащие пары `(адрес, строка`.
+1. **First Pass (`first_pass`)**  
+   - Skip comments (`#`).
+   - Code is divided into `.text` and `.data` sections, each with its own addressing space (due to Harvard architecture).
+   - Process `.org` directives.
+   - Extract and save labels (labels) along with their addresses.
+   - Form two segments: `data_segment` and `text_segment`, containing pairs `(address, string)`.
 
-2. **Второй проход (`second_pass`)**  
-   Здесь происходит собственно трансляция:
-   - Каждая строка сегмента анализируется и превращается в числовое представление.
-   - Метки с `.word` и `.byte` транслируются в память, будут находиться по адресу `out/<out_path>.data.bin`
-   - Для инструкций `.text` используется парсер (`parse_line`) и энкодер (`encode`), который формирует 32-битный бинарный код в соответствии с описанием ISA.
-   - Параллельно формируется отладочная информация: `(адрес, исходная строка, машинный код)`.
+2. **Second Pass (`second_pass`)**  
+   Here, actual translation occurs:
+   - Each segment line is analyzed and converted into a numerical representation.
+   - Labels with `.word` and `.byte` are translated into memory and will be located at `out/<out_path>.data.bin`.
+   - For `.text` instructions, a parser (`parse_line`) and encoder (`encode`) are used to form 32-bit binary code according to the ISA description.
+   - Debug information is generated in parallel: `(address, source line, machine code)`.
 
-3. **Вывод бинарных файлов (`write_binaries`)**  
-   - Полученные коды сохраняются в два отдельных бинарных файла:  
-     - `.text.bin` — код программы (инструкции)  
-     - `.data.bin` — начальное состояние памяти данных  
-   - Также создаются отладочные текстовые дампы `.text.log` и `.data.log`, где каждая строка содержит:  
-     `адрес — HEX — BIN — исходная строка`.
+3. **Output Binary Files (`write_binaries`)**  
+   - The resulting codes are saved into two separate binary files:  
+     - `.text.bin` — program code (instructions)  
+     - `.data.bin` — initial data memory state  
+   - Debug text dumps `.text.log` and `.data.log` are also created, where each line contains:  
+     `address — HEX — BIN — source line`.
 
-## Модель процессора
+## Processor Model
 __RISC, lol?__
-> На вход подается транслированный (через [translator.py](machine/translator.py)) бинарный файл, выходное название и (опционально) файл с входными данными.
+> The input is a translated (via [translator.py](machine/translator.py)) binary file, output name, and (optionally) an input data file.
 
-Из [run_machine.py](run_machine.py):
+From [run_machine.py](run_machine.py):
 ```text
 Usage: python run_machine.py <text_bin> <data_bin> [input_file]
 ```
 
-Запуск транслятора:
+Running the translator:
 ```text
 Usage: python machine/translator.py <asm file> <desired output file name>
 ```
 
-Эмулятор может генерировать подробные логи (в `trace.log`) с построчной информацией:
-- номер такта;
-- состояние регистров;
-- IR, PC, ALU_OUT, флаги;
-- комментарии по действиям CU.
-Это позволяет точно отследить поведение программы на уровне микрокоманд.
+The emulator can generate detailed logs (in `trace.log`) with line-by-line information:
+- clock cycle number;
+- register states;
+- IR, PC, ALU_OUT, flags;
+- CU action comments.
+This allows precise tracking of program behavior at the microinstruction level.
 
-### Схемотехника
-Особенности модели:
-- Инструкции фиксированной длины (32 бита);
-- 7 типов инструкций (R, I, S, B, U, J, SYS);
-- Память Harvard-архитектуры (разделение команд и данных);
-- Обработка ввода/вывода через отображённую память (memory-mapped I/O);
-- Ограниченная система флагов (N, Z).
+### Circuit Design
+Model features:
+- Fixed-length instructions (32 bits);
+- 7 instruction types (R, I, S, B, U, J, SYS);
+- Harvard architecture memory (separate instruction and data);
+- Input/output processing via memory-mapped I/O;
+- Limited flag system (N, Z).
 
 #### Datapath
 
-Datapath состоит из:
-- регистрa команд (IR);
-- регистрa счётчика команд (PC);
-- ALU (арифметико-логическое устройство);
-- регистрoв общего назначения (32 x 32-битных);
-- мультиплексоров для выбора входов ALU и адресации памяти;
-- шины данных и адресов.
+Datapath consists of:
+- Instruction register (IR);
+- Program counter (PC);
+- ALU (Arithmetic Logic Unit);
+- General-purpose registers (32 x 32-bit);
+- Multiplexers for ALU input and memory addressing selection;
+- Data and address buses.
 
 ![Datapath](lab4_Datapath.png)
 
@@ -497,53 +497,53 @@ Datapath состоит из:
 
 #### Control Unit
 
-Control Unit реализован через микропрограммную память, где каждая микрокоманда определяет:
-   - сигналы управления (чтение/запись, выбор регистра, операции ALU);
-   - переход к следующей микрокоманде;
-   - условия ветвления на основе флагов N/Z и типа инструкции.
+Control Unit is implemented via microprogram memory, where each microinstruction defines:
+   - Control signals (read/write, register selection, ALU operations);
+   - Transition to the next microinstruction;
+   - Branch conditions based on N/Z flags and instruction type.
 
-Микропрограмма определяет точную последовательность шагов на каждом такте выполнения инструкции.
+The microprogram defines the exact sequence of steps for each clock cycle of instruction execution.
 
 ![Control Unit](lab4_CU.drawio.png)
 
 
-## ✅ Тестирование
+## ✅ Testing
 
-Тестирование реализовано в виде **golden tests** — то есть каждый тестовый `.asm`-файл выполняется, и полученные выходные файлы сравниваются с заранее сохранёнными **эталонными результатами** (логи, снимки памяти и т.д.).
+Testing is implemented as **golden tests** — each test `.asm` file is executed, and the resulting output files are compared with pre-saved **reference results** (logs, memory snapshots, etc.).
 
-### 🔧 Используемые инструменты:
+### 🔧 Tools Used:
 
-* [`pytest`](https://docs.pytest.org/) — для запуска и управления тестами;
-* [`GitHub Actions`](https://docs.github.com/en/actions) — для автоматического CI на каждый `push` и `pull request`;
-* `tests/expected/<name>/` — папки с ожидаемыми (золотыми) логами;
-* `test_outputs/<name>/` — сохраняются логи каждого теста (всегда), даже при падении.
-
----
-
-### Что проверяется в каждом тесте:
-
-Для каждого алгоритма:
-
-1. Выполняется трансляция `.asm` -> `.bin`;
-2. Запускается `run_machine.py` на полученных файлах;
-3. Сохраняются логи выполнения:
-   * `trace.log` (микрошаги CU);
-   * `final_snapshot.txt` (снимок регистров и памяти);
-   * `out.text.log` (инструкции в hex и дизассемблированном виде);
-   * `out.data.log` (дамп секции `.data`);
-4. Выполненные логи сравниваются с `tests/expected/<test>/`.
+* [`pytest`](https://docs.pytest.org/) — for running and managing tests;
+* [`GitHub Actions`](https://docs.github.com/en/actions) — for automatic CI on each `push` and `pull request`;
+* `tests/expected/<name>/` — folders with expected (golden) logs;
+* `test_outputs/<name>/` — logs for each test are saved (always), even if the test fails.
 
 ---
 
-### 🚀 Запуск тестов вручую
+### What is Checked in Each Test:
 
-В корне проекта:
+For each algorithm:
+
+1. Translation `.asm` -> `.bin` is performed;
+2. `run_machine.py` is run on the resulting files;
+3. Execution logs are saved:
+   * `trace.log` (CU microsteps);
+   * `final_snapshot.txt` (register and memory snapshot);
+   * `out.text.log` (instructions in hex and disassembled form);
+   * `out.data.log` (`.data` section dump);
+4. The logs are compared with `tests/expected/<test>/`.
+
+---
+
+### 🚀 Manual Test Execution
+
+In the project root:
 
 ```bash
 pytest -v
 ```
 
-Тесты можно ограничить конкретным файлом или тестом:
+Tests can be limited to a specific file or test:
 
 ```bash
 pytest tests/test_algorithms.py::test_algorithm[hello_world]
@@ -553,8 +553,8 @@ pytest tests/test_algorithms.py::test_algorithm[hello_world]
 
 ### 💚 CI: GitHub Actions
 
-Настроен CI workflow `.github/workflows/test.yml`:
+CI workflow `.github/workflows/test.yml` is configured:
 
-* запускается при каждом `push` или `pull_request`;
-* собирает и тестирует все `.asm`-файлы;
-* падает, если хотя бы один результат не совпадает с ожидаемым.
+* runs on each `push` or `pull_request`;
+* builds and tests all `.asm` files;
+* fails if any result does not match the expected one.
