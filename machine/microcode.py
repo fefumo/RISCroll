@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 from machine.isa import INSTRUCTION_SET
 
@@ -7,30 +6,30 @@ from machine.isa import INSTRUCTION_SET
 @dataclass
 class MicroInstruction:
     comment: str = ""
-    latch_pc: Optional[str] = None  # "inc", "alu", "branch"
+    latch_pc: str | None = None  # "inc", "alu", "branch"
     latch_ir: bool = False
-    latch_reg: Optional[int] = None  # register number
-    latch_alu: Optional[str] = None  # operation: add, sub, mul...
-    latch_ar: Optional[str] = None  # address in memory
+    latch_reg: str | None = None  # register number (as string) or None
+    latch_alu: str | None = None  # operation: add, sub, mul...
+    latch_ar: str | None = None  # address in memory
     mem_read: bool = False
     mem_write: bool = False
     set_flags: bool = False
-    next_mpc: Optional[int] = None  # address of next microprogram
-    jump_if: Optional[str] = None  # condition (ZERO, NEG, ...)
+    next_mpc: int | None = None  # address of next microprogram
+    jump_if: str | None = None  # condition (ZERO, NEG, ...)
     halt: bool = False
     store_byte: bool = False  # for differentiating between sb/sw
 
 
 class MicrocodeROM:
-    def __init__(self):
-        self.code = {}
-        self.decode_table = {}
-        self.mpc_counter = 100
+    def __init__(self) -> None:
+        self.code: dict[int, MicroInstruction] = {}
+        self.decode_table: dict[tuple[int, int | None, int | None], int] = {}
+        self.mpc_counter: int = 100
 
         self.fill_fetch()
         self.fill_from_isa()
 
-    def __getitem__(self, mpc):
+    def __getitem__(self, mpc: int) -> MicroInstruction:
         """
         Allows you to access MicrocodeROM as a dictionary:
             rom = MicrocodeROM()
@@ -41,7 +40,7 @@ class MicrocodeROM:
         """
         return self.code.get(mpc, MicroInstruction(comment="HALT", halt=True))
 
-    def fill_fetch(self):
+    def fill_fetch(self) -> None:
         """
         Create the first 3 microinstructions that are executed for any instruction.
         This is a universal fetch-decode loop.
@@ -52,14 +51,23 @@ class MicrocodeROM:
         # self.code[1] = MicroInstruction(comment="DECODE", next_mpc=1000) # look docs, i used to have instruction decder in scheme
         self.code[1000] = MicroInstruction(comment="DECODE DISPATCH", next_mpc=None)
 
-    def register_decode(self, opcode, funct3=None, funct7=None, mpc=None):
+    def register_decode(
+        self,
+        opcode: int,
+        funct3: int | None = None,
+        funct7: int | None = None,
+        mpc: int | None = None,
+    ) -> None:
         """
         Register a match: (opcode, funct3, funct7) -> mpc
         """
-        key = (opcode, funct3, funct7)
-        self.decode_table[key] = mpc
+        key: tuple[int, int | None, int | None] = (opcode, funct3, funct7)
+        if mpc is not None:
+            self.decode_table[key] = mpc
 
-    def get_decode_address(self, opcode, funct3=None, funct7=None):
+    def get_decode_address(
+        self, opcode: int, funct3: int | None = None, funct7: int | None = None
+    ) -> int:
         """
         Try to find a suitable mpc address (start of firmware) for the instruction step by step:
             Exact match (opcode, funct3, funct7)
@@ -67,7 +75,7 @@ class MicrocodeROM:
             If not found: ignore everything except opcode -> (opcode, None, None)
             If nothing found: return 9999 (HALT address)
         """
-        result = (
+        result: int | None = (
             self.decode_table.get((opcode, funct3, funct7))
             or self.decode_table.get((opcode, funct3, None))
             or self.decode_table.get((opcode, None, None))
@@ -81,28 +89,26 @@ class MicrocodeROM:
 
         return result
 
-    def alloc(self, count=1):
-        addr = self.mpc_counter
+    def alloc(self, count: int = 1) -> int:
+        addr: int = self.mpc_counter
         self.mpc_counter += count
         return addr
 
-    def fill_from_isa(self):
+    def fill_from_isa(self) -> None:
         for name, props in INSTRUCTION_SET.items():
-            t = props["type"]
-            op = name
-            opcode = props["opcode"]
-            funct3 = props.get("funct3")
-            funct7 = props.get("funct7")
+            t: str = props["type"]
+            op: str = name
+            opcode: int = props["opcode"]
+            funct3: int | None = props.get("funct3")
+            funct7: int | None = props.get("funct7")
 
             if t == "R":
-                addr = self.alloc(2)
+                addr: int = self.alloc(2)
                 self.register_decode(opcode, funct3, funct7, addr)
                 self.code[addr] = MicroInstruction(
                     comment=f"R-{op}", latch_alu=op, set_flags=True, next_mpc=addr + 1
                 )
-                self.code[addr + 1] = MicroInstruction(
-                    comment="WB", latch_reg="rd", next_mpc=0
-                )
+                self.code[addr + 1] = MicroInstruction(comment="WB", latch_reg="rd", next_mpc=0)
 
             elif t == "I":
                 if op == "lw":
@@ -112,7 +118,7 @@ class MicrocodeROM:
                         comment="I-LW addr", latch_alu="add", next_mpc=addr + 1
                     )
                     self.code[addr + 1] = MicroInstruction(
-                        comment="I-LW load", mem_read=True, latch_reg=3, next_mpc=0
+                        comment="I-LW load", mem_read=True, next_mpc=0
                     )
                 elif op == "lb":
                     addr = self.alloc(2)
@@ -121,7 +127,7 @@ class MicrocodeROM:
                         comment="I-LB addr", latch_alu="add", next_mpc=addr + 1
                     )
                     self.code[addr + 1] = MicroInstruction(
-                        comment="I-LB load byte", mem_read=True, latch_reg=3, next_mpc=0
+                        comment="I-LB load byte", mem_read=True, next_mpc=0
                     )
                 elif op == "jalr":
                     addr = self.alloc(3)
@@ -146,32 +152,30 @@ class MicrocodeROM:
                         set_flags=True,
                         next_mpc=addr + 1,
                     )
-                    self.code[addr + 1] = MicroInstruction(
-                        comment="WB", latch_reg="rd", next_mpc=0
-                    )
+                    self.code[addr + 1] = MicroInstruction(comment="WB", latch_reg="rd", next_mpc=0)
 
             elif t == "S":
                 addr = self.alloc(2)
                 self.register_decode(opcode, funct3, None, addr)
                 self.code[addr] = MicroInstruction(
-                    comment="S-{op} addr", latch_alu="add", next_mpc=addr + 1
+                    comment=f"S-{op} addr", latch_alu="add", next_mpc=addr + 1
                 )
                 if op == "sb":
                     self.code[addr + 1] = MicroInstruction(
-                        comment="S-{op} store",
+                        comment=f"S-{op} store",
                         mem_write=True,
                         store_byte=True,
                         next_mpc=0,
                     )
                 elif op == "sw":
                     self.code[addr + 1] = MicroInstruction(
-                        comment="S-{op} store", mem_write=True, next_mpc=0
+                        comment=f"S-{op} store", mem_write=True, next_mpc=0
                     )
 
             elif t == "B":
                 addr = self.alloc(3)
-                cond_map = {"beq": "Z", "bne": "NZ", "bgt": "GT", "ble": "LE"}
-                cond = cond_map[op]
+                cond_map: dict[str, str] = {"beq": "Z", "bne": "NZ", "bgt": "GT", "ble": "LE"}
+                cond: str = cond_map[op]
                 self.register_decode(opcode, funct3, None, addr)
 
                 self.code[addr] = MicroInstruction(
@@ -181,7 +185,7 @@ class MicrocodeROM:
                     next_mpc=addr + 1,
                 )
                 self.code[addr + 1] = MicroInstruction(
-                    comment="B-{op} offset",
+                    comment=f"B-{op} offset",
                     latch_alu="branch_offset",
                     next_mpc=addr + 2,
                 )

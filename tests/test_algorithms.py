@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+
 import pytest
 
 ALGO_DIR = "algorithms"
@@ -31,16 +32,14 @@ TEST_CASES = [
         "input_file": "algorithms/cat_input.txt",
         "input_mode": None,
     },
-    {
-        "name": "macro_showcase",
-        "input_file": None,
-        "input_mode": None
-    },
+    {"name": "macro_showcase", "input_file": None, "input_mode": None},
 ]
 
+
 def _read(path):
-    with open(path, "r") as f:
+    with open(path) as f:
         return f.read().strip()
+
 
 @pytest.mark.parametrize("case", TEST_CASES)
 def test_algorithm(case):
@@ -68,10 +67,7 @@ def test_algorithm(case):
 
     # === 1. Translation .asm -> .bin ===
     target_prefix = os.path.join(OUT_DIR, "out")  # out/out.text.bin
-    subprocess.run(
-        ["python", "machine/translator.py", asm_path, target_prefix],
-        check=True
-    )
+    subprocess.run(["python", "machine/translator.py", asm_path, target_prefix], check=True)
 
     # === 2. Starting the machine ===
     cmd = ["python", "run_machine.py", f"{target_prefix}.text.bin", f"{target_prefix}.data.bin"]
@@ -95,7 +91,7 @@ def test_algorithm(case):
             shutil.copy(src, os.path.join(output_dir, dst_name))
 
     # === 4. Comparison with reference files ===
-    for src, dst_name in artifacts:
+    for _src, dst_name in artifacts:
         actual = os.path.join(output_dir, dst_name)
         expected = os.path.join(expected_path, dst_name)
         assert os.path.exists(actual), f"Missing output file: {actual}"

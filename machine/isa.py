@@ -1,6 +1,16 @@
-"""Instruction Set Architecture of RISCroll"""
+"""Instruction Set Architecture of RISCroll."""
 
-INSTRUCTION_SET = {
+from typing import Literal, TypedDict
+
+
+class InstructionProperties(TypedDict, total=False):
+    type: Literal["R", "I", "S", "B", "U", "J", "SYS"]
+    opcode: int
+    funct3: int
+    funct7: int
+
+
+INSTRUCTION_SET: dict[str, InstructionProperties] = {
     "add": {"type": "R", "opcode": 0x33, "funct3": 0b000, "funct7": 0b0000000},
     "sub": {"type": "R", "opcode": 0x33, "funct3": 0b001, "funct7": 0b0000000},
     "and": {"type": "R", "opcode": 0x33, "funct3": 0b010, "funct7": 0b0000000},
@@ -27,7 +37,7 @@ INSTRUCTION_SET = {
     "halt": {"type": "SYS", "opcode": 0x7F},
 }
 
-ALIAS_REGISTERS = {
+ALIAS_REGISTERS: dict[str, int] = {
     "zero": 0,
     "ra": 1,
     "sp": 2,
