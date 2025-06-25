@@ -135,7 +135,6 @@ main:
 
 Использован в: [macro_showcase.asm](algorithms/macro_showcase.asm)
 
-```
 ### Регистры
 | Register | Alias  | Description                       |
 |----------|--------|-----------------------------------|
